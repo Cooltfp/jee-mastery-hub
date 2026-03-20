@@ -12,35 +12,24 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const systemPrompt = `You are a JEE Mains question paper generator. Generate exactly 30 unique JEE Mains level questions.
+    const systemPrompt = `You are a JEE Mains question paper generator. You MUST return valid JSON.
+
+Generate exactly 30 unique JEE Mains level questions as a JSON object with a "questions" key.
 
 REQUIREMENTS:
 - 10 Physics, 10 Chemistry, 10 Mathematics questions
 - Each subject: 3 easy, 4 medium, 3 hard
-- Mix of MCQ (25 questions) and Numerical (5 questions, at least 1 per subject)
-- All mathematical expressions MUST use LaTeX: inline $...$ and display $$...$$
-- Questions must be application-based, matching real JEE Mains difficulty
-- Each MCQ must have exactly 4 options (a, b, c, d)
-- Numerical questions: answer must be a single number (integer or up to 2 decimal places)
+- Mix of MCQ (25) and Numerical (5, at least 1 per subject)
+- Use LaTeX for math: inline $...$ and display $$...$$
+- Application-based MCQs matching JEE Mains difficulty
+- Each MCQ: 4 options (a, b, c, d)
+- Numerical: answer is a single number
 
-TOPICS TO COVER:
-Physics: Mechanics, Electrodynamics, Optics, Thermodynamics, Modern Physics, Waves
-Chemistry: Physical Chemistry, Organic Chemistry, Inorganic Chemistry, Ionic Equilibrium, Mole Concept, Chemical Bonding
-Mathematics: Calculus, Algebra, Coordinate Geometry, Trigonometry, Probability, Vectors
+TOPICS: Physics (Mechanics, Electrodynamics, Optics, Thermodynamics, Modern Physics, Waves), Chemistry (Physical, Organic, Inorganic, Ionic Equilibrium, Mole Concept, Chemical Bonding), Math (Calculus, Algebra, Coordinate Geometry, Trigonometry, Probability, Vectors)
 
-Return ONLY a valid JSON array of 30 objects. Each object must have:
-{
-  "subject": "physics"|"chemistry"|"math",
-  "type": "mcq"|"numerical",
-  "difficulty": "easy"|"medium"|"hard",
-  "text": "question text with $LaTeX$",
-  "options": [{"id":"a","text":"..."},{"id":"b","text":"..."},{"id":"c","text":"..."},{"id":"d","text":"..."}] or null for numerical,
-  "correctAnswer": "a"|"b"|"c"|"d" for MCQ or "number" for numerical,
-  "explanation": "step-by-step solution with $LaTeX$",
-  "topic": "specific topic name",
-  "marks": 4,
-  "negativeMarks": 1 for MCQ, 0 for numerical
-}`;
+JSON format:
+{"questions": [{"subject":"physics","type":"mcq","difficulty":"easy","text":"...","options":[{"id":"a","text":"..."},{"id":"b","text":"..."},{"id":"c","text":"..."},{"id":"d","text":"..."}],"correctAnswer":"a","explanation":"...","topic":"...","marks":4,"negativeMarks":1}]}
+For numerical: options should be null, negativeMarks should be 0.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -52,8 +41,9 @@ Return ONLY a valid JSON array of 30 objects. Each object must have:
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: "Generate 30 JEE Mains questions now. Return ONLY the JSON array, no markdown fences." },
+          { role: "user", content: "Generate 30 JEE Mains questions as valid JSON." },
         ],
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -74,12 +64,19 @@ Return ONLY a valid JSON array of 30 objects. Each object must have:
     }
 
     const data = await response.json();
-    let content = data.choices?.[0]?.message?.content || "";
-    
-    // Strip markdown code fences if present
-    content = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    
-    const questions = JSON.parse(content);
+    const content = data.choices?.[0]?.message?.content || "";
+
+    console.log("Response length:", content.length);
+
+    // response_format: json_object guarantees valid JSON
+    const parsed = JSON.parse(content);
+    const questions = parsed.questions || parsed;
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+      throw new Error("No questions in response");
+    }
+
+    console.log(`Successfully generated ${questions.length} questions`);
 
     return new Response(JSON.stringify({ questions }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
