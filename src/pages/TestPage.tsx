@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Question } from "@/data/questions";
 import { QuestionState, TestSession, calculateResults } from "@/lib/testStore";
 import { supabase } from "@/integrations/supabase/client";
+import { getDeviceId, checkAndUnlockLevel } from "@/lib/levelSystem";
+import PreTestDialog, { PreTestConfig } from "@/components/PreTestDialog";
 import MathText from "@/components/MathText";
 import { Button } from "@/components/ui/button";
 import { Clock, ChevronLeft, ChevronRight, Flag, Send, AlertTriangle, Loader2 } from "lucide-react";
@@ -12,23 +14,30 @@ const TOTAL_TIME = 60 * 60;
 
 const TestPage = () => {
   const navigate = useNavigate();
+  const [preTestConfig, setPreTestConfig] = useState<PreTestConfig | null>(null);
   const [session, setSession] = useState<TestSession | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMessage, setLoadingMessage] = useState("Generating your personalized question paper...");
+  const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const [dbSessionId, setDbSessionId] = useState<string | null>(null);
   const [dbQuestionIds, setDbQuestionIds] = useState<string[]>([]);
 
   const questionTimerRef = useRef<number>(0);
   const lastTickRef = useRef<number>(Date.now());
 
-  // Generate questions via AI
+  const handlePreTestStart = (config: PreTestConfig) => {
+    setPreTestConfig(config);
+    setLoading(true);
+    setLoadingMessage(`Generating Level ${config.level} questions${config.chapterName ? ` for ${config.chapterName}` : ""}...`);
+  };
+
+  // Generate questions via AI after pre-test config
   useEffect(() => {
+    if (!preTestConfig || !loading) return;
+
     const generateQuestions = async () => {
       try {
-        setLoadingMessage("Calling AI to generate 30 JEE-level questions...");
-        
         const { data, error } = await supabase.functions.invoke("generate-questions", {
-          body: {},
+          body: { level: preTestConfig.level, chapter_name: preTestConfig.chapterName },
         });
 
         if (error) throw error;
@@ -50,19 +59,24 @@ const TestPage = () => {
           negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
         }));
 
-        setLoadingMessage("Saving questions to database...");
+        setLoadingMessage("Saving to database...");
 
-        // Create test session in DB
+        const deviceId = getDeviceId();
         const { data: sessionData, error: sessionError } = await supabase
           .from("test_sessions")
-          .insert({ is_completed: false })
+          .insert({
+            is_completed: false,
+            confidence: preTestConfig.confidence,
+            level: preTestConfig.level,
+            chapter_name: preTestConfig.chapterName,
+            device_id: deviceId,
+          })
           .select()
           .single();
 
         if (sessionError) throw sessionError;
         setDbSessionId(sessionData.id);
 
-        // Save questions to DB
         const questionRows = questions.map((q, i) => ({
           session_id: sessionData.id,
           question_index: i,
@@ -84,23 +98,20 @@ const TestPage = () => {
           .select();
 
         if (qError) throw qError;
-        
+
         const sortedQIds = savedQuestions
           .sort((a: any, b: any) => a.question_index - b.question_index)
           .map((q: any) => q.id);
         setDbQuestionIds(sortedQIds);
 
-        // Create user_responses rows
         const responseRows = sortedQIds.map((qId: string) => ({
           session_id: sessionData.id,
           question_id: qId,
           status: "not-visited",
           time_spent: 0,
         }));
-
         await supabase.from("user_responses").insert(responseRows);
 
-        // Initialize session
         const questionStates: QuestionState[] = questions.map((q) => ({
           questionId: q.id,
           status: "not-visited" as const,
@@ -117,13 +128,11 @@ const TestPage = () => {
           startTime: Date.now(),
           isSubmitted: false,
         });
-
         setLoading(false);
       } catch (err: any) {
         console.error("Failed to generate questions:", err);
         toast.error("Failed to generate questions. Using sample questions instead.");
-        
-        // Fallback to sample questions
+
         const { sampleQuestions } = await import("@/data/questions");
         const questionStates: QuestionState[] = sampleQuestions.map((q) => ({
           questionId: q.id,
@@ -146,7 +155,7 @@ const TestPage = () => {
     };
 
     generateQuestions();
-  }, []);
+  }, [preTestConfig]);
 
   // Timer
   useEffect(() => {
@@ -204,7 +213,6 @@ const TestPage = () => {
     setSession((prev) => {
       if (!prev) return prev;
       const states = [...prev.questionStates];
-      // Sync current question to DB
       syncResponseToDb(prev.currentQuestionIndex, states[prev.currentQuestionIndex]);
       if (states[index].status === "not-visited") {
         states[index] = { ...states[index], status: "not-answered" };
@@ -259,9 +267,17 @@ const TestPage = () => {
     saveCurrentQuestionTime();
 
     const result = calculateResults(session);
-    sessionStorage.setItem("testResult", JSON.stringify(result));
 
-    // Save results to DB
+    // Add confidence and level to result for analytics
+    const enrichedResult = {
+      ...result,
+      confidence: preTestConfig?.confidence || null,
+      level: preTestConfig?.level || 3,
+      chapterName: preTestConfig?.chapterName || null,
+    };
+
+    sessionStorage.setItem("testResult", JSON.stringify(enrichedResult));
+
     if (dbSessionId) {
       await supabase.from("test_sessions").update({
         is_completed: true,
@@ -272,7 +288,13 @@ const TestPage = () => {
         silly_errors: JSON.parse(JSON.stringify(result.sillyErrors)),
       }).eq("id", dbSessionId);
 
-      // Save session ID for doubt solver context
+      // Check level unlock
+      const deviceId = getDeviceId();
+      const newLevel = await checkAndUnlockLevel(dbSessionId, deviceId);
+      if (newLevel) {
+        sessionStorage.setItem("levelUnlocked", String(newLevel));
+      }
+
       sessionStorage.setItem("lastSessionId", dbSessionId);
       sessionStorage.setItem("dbQuestionIds", JSON.stringify(dbQuestionIds));
     }
@@ -289,6 +311,11 @@ const TestPage = () => {
     const s = Math.floor(seconds % 60);
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
+
+  // Show pre-test dialog first
+  if (!preTestConfig) {
+    return <PreTestDialog onStart={handlePreTestStart} />;
+  }
 
   // Loading screen
   if (loading || !session) {
@@ -326,8 +353,13 @@ const TestPage = () => {
         <div className="flex items-center gap-3">
           <div className="font-semibold text-lg tracking-tight">JEE Mains Mock Test</div>
           <span className="text-xs px-2 py-1 rounded-md bg-secondary text-muted-foreground font-medium">
-            {session.questions.length} Questions
+            Level {preTestConfig.level} • {session.questions.length} Qs
           </span>
+          {preTestConfig.chapterName && (
+            <span className="text-xs px-2 py-1 rounded-md bg-accent/10 text-accent font-medium">
+              {preTestConfig.chapterName}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className={`flex items-center gap-2 font-mono text-lg font-semibold tabular-nums ${

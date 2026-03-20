@@ -18,6 +18,10 @@ const Index = () => {
             <span className="font-bold text-lg tracking-tight">JEE Prep</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/practice")} className="active:scale-[0.97] transition-transform">
+              <BookOpen className="w-4 h-4 mr-2" />
+              Practice
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/doubt-solver")} className="active:scale-[0.97] transition-transform">
               <MessageCircle className="w-4 h-4 mr-2" />
               Doubt Solver
