@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Fix broken LaTeX escapes that aren't valid JSON escape sequences
+function sanitizeJsonString(raw: string): string {
+  // Replace single backslashes that aren't valid JSON escapes (\", \\, \/, \b, \f, \n, \r, \t, \uXXXX)
+  return raw.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -12,7 +18,9 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const systemPrompt = `You are a JEE Mains question paper generator. You MUST return valid JSON.
+    const systemPrompt = `You are a JSON generator that creates JEE Mains questions. You MUST output ONLY valid JSON.
+
+CRITICAL: All LaTeX backslashes MUST be double-escaped for JSON. Use \\\\frac not \\frac, \\\\sqrt not \\sqrt, \\\\alpha not \\alpha, \\\\int not \\int, \\\\times not \\times, \\\\rightarrow not \\rightarrow.
 
 Generate exactly 30 unique JEE Mains level questions as a JSON object with a "questions" key.
 
@@ -20,7 +28,7 @@ REQUIREMENTS:
 - 10 Physics, 10 Chemistry, 10 Mathematics questions
 - Each subject: 3 easy, 4 medium, 3 hard
 - Mix of MCQ (25) and Numerical (5, at least 1 per subject)
-- Use LaTeX for math: inline $...$ and display $$...$$
+- Use LaTeX for math with dollar signs: $...$ for inline, $$...$$ for display
 - Application-based MCQs matching JEE Mains difficulty
 - Each MCQ: 4 options (a, b, c, d)
 - Numerical: answer is a single number
@@ -41,7 +49,7 @@ For numerical: options should be null, negativeMarks should be 0.`;
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: "Generate 30 JEE Mains questions as valid JSON." },
+          { role: "user", content: "Generate 30 JEE Mains questions. Remember: double-escape ALL LaTeX backslashes for valid JSON." },
         ],
         response_format: { type: "json_object" },
       }),
@@ -68,8 +76,24 @@ For numerical: options should be null, negativeMarks should be 0.`;
 
     console.log("Response length:", content.length);
 
-    // response_format: json_object guarantees valid JSON
-    const parsed = JSON.parse(content);
+    // Try parsing directly first; if it fails, sanitize LaTeX escapes and retry
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (firstError) {
+      console.warn("First JSON.parse failed, sanitizing LaTeX escapes...");
+      console.log("Raw content (first 500 chars):", content.substring(0, 500));
+      try {
+        const sanitized = sanitizeJsonString(content);
+        parsed = JSON.parse(sanitized);
+        console.log("Sanitized JSON.parse succeeded");
+      } catch (secondError) {
+        console.error("Sanitized JSON.parse also failed:", secondError);
+        console.log("Raw content (first 1000 chars):", content.substring(0, 1000));
+        throw new Error("Failed to parse AI response as JSON");
+      }
+    }
+
     const questions = parsed.questions || parsed;
 
     if (!Array.isArray(questions) || questions.length === 0) {
