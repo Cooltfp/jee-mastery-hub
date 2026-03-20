@@ -14,7 +14,140 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      questions: {
+        Row: {
+          correct_answer: string
+          difficulty: string
+          explanation: string
+          id: string
+          marks: number
+          negative_marks: number
+          options: Json | null
+          question_index: number
+          session_id: string
+          subject: string
+          text: string
+          topic: string
+          type: string
+        }
+        Insert: {
+          correct_answer: string
+          difficulty: string
+          explanation: string
+          id?: string
+          marks?: number
+          negative_marks?: number
+          options?: Json | null
+          question_index: number
+          session_id: string
+          subject: string
+          text: string
+          topic: string
+          type: string
+        }
+        Update: {
+          correct_answer?: string
+          difficulty?: string
+          explanation?: string
+          id?: string
+          marks?: number
+          negative_marks?: number
+          options?: Json | null
+          question_index?: number
+          session_id?: string
+          subject?: string
+          text?: string
+          topic?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "test_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          is_completed: boolean
+          max_score: number | null
+          score: number | null
+          silly_errors: Json | null
+          subject_wise: Json | null
+          total_time_taken: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          max_score?: number | null
+          score?: number | null
+          silly_errors?: Json | null
+          subject_wise?: Json | null
+          total_time_taken?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_completed?: boolean
+          max_score?: number | null
+          score?: number | null
+          silly_errors?: Json | null
+          subject_wise?: Json | null
+          total_time_taken?: number | null
+        }
+        Relationships: []
+      }
+      user_responses: {
+        Row: {
+          created_at: string
+          id: string
+          question_id: string
+          selected_answer: string | null
+          session_id: string
+          status: string
+          time_spent: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          question_id: string
+          selected_answer?: string | null
+          session_id: string
+          status?: string
+          time_spent?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          question_id?: string
+          selected_answer?: string | null
+          session_id?: string
+          status?: string
+          time_spent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_responses_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "test_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
