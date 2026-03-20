@@ -5,11 +5,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Fix broken LaTeX escapes that aren't valid JSON escape sequences
 function sanitizeJsonString(raw: string): string {
-  // Replace single backslashes that aren't valid JSON escapes (\", \\, \/, \b, \f, \n, \r, \t, \uXXXX)
   return raw.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
 }
+
+const LEVEL_DESCRIPTIONS: Record<number, string> = {
+  1: "Level 1 (Foundational): Direct formula-based questions. Single-step calculations. Test basic concept recall. Easy difficulty only.",
+  2: "Level 2 (Standard): Standard textbook problems. Two-step calculations. Mix of easy and medium difficulty.",
+  3: "Level 3 (JEE Mains): Exact JEE Mains difficulty with multi-step logic. Application-based MCQs. Mix of easy, medium, and hard.",
+  4: "Level 4 (Intense): Above-average JEE Mains difficulty. Multi-step problems requiring strong conceptual clarity. Mostly medium and hard.",
+  5: "Level 5 (Challenger): Multi-concept questions mixing topics (e.g., Physics with Calculus, Thermodynamics with Chemistry). All hard difficulty. Requires deep understanding.",
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -18,18 +24,31 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
+    const body = await req.json().catch(() => ({}));
+    const level = Math.min(5, Math.max(1, body.level || 3));
+    const chapterName: string | null = body.chapter_name || null;
+
+    const levelDesc = LEVEL_DESCRIPTIONS[level];
+
+    const chapterInstruction = chapterName
+      ? `IMPORTANT: Generate ALL 30 questions ONLY from the chapter/topic "${chapterName}". Do not include questions from other chapters.`
+      : "";
+
     const systemPrompt = `You are a JSON generator that creates JEE Mains questions. You MUST output ONLY valid JSON.
 
 CRITICAL: All LaTeX backslashes MUST be double-escaped for JSON. Use \\\\frac not \\frac, \\\\sqrt not \\sqrt, \\\\alpha not \\alpha, \\\\int not \\int, \\\\times not \\times, \\\\rightarrow not \\rightarrow.
 
-Generate exactly 30 unique JEE Mains level questions as a JSON object with a "questions" key.
+DIFFICULTY LEVEL: ${levelDesc}
+
+${chapterInstruction}
+
+Generate exactly 30 unique questions as a JSON object with a "questions" key.
 
 REQUIREMENTS:
-- 10 Physics, 10 Chemistry, 10 Mathematics questions
-- Each subject: 3 easy, 4 medium, 3 hard
+- ${chapterName ? `All 30 questions from "${chapterName}"` : "10 Physics, 10 Chemistry, 10 Mathematics questions"}
+- ${level <= 2 ? "Mostly easy questions with some medium" : level === 3 ? "3 easy, 4 medium, 3 hard per subject" : "Mostly medium and hard questions"}
 - Mix of MCQ (25) and Numerical (5, at least 1 per subject)
 - Use LaTeX for math with dollar signs: $...$ for inline, $$...$$ for display
-- Application-based MCQs matching JEE Mains difficulty
 - Each MCQ: 4 options (a, b, c, d)
 - Numerical: answer is a single number
 
@@ -49,7 +68,7 @@ For numerical: options should be null, negativeMarks should be 0.`;
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: "Generate 30 JEE Mains questions. Remember: double-escape ALL LaTeX backslashes for valid JSON." },
+          { role: "user", content: `Generate 30 questions at Level ${level}${chapterName ? ` for chapter "${chapterName}"` : ""}. Double-escape ALL LaTeX backslashes for valid JSON.` },
         ],
         response_format: { type: "json_object" },
       }),
@@ -73,19 +92,15 @@ For numerical: options should be null, negativeMarks should be 0.`;
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
-
     console.log("Response length:", content.length);
 
-    // Try parsing directly first; if it fails, sanitize LaTeX escapes and retry
     let parsed;
     try {
       parsed = JSON.parse(content);
-    } catch (firstError) {
+    } catch {
       console.warn("First JSON.parse failed, sanitizing LaTeX escapes...");
-      console.log("Raw content (first 500 chars):", content.substring(0, 500));
       try {
-        const sanitized = sanitizeJsonString(content);
-        parsed = JSON.parse(sanitized);
+        parsed = JSON.parse(sanitizeJsonString(content));
         console.log("Sanitized JSON.parse succeeded");
       } catch (secondError) {
         console.error("Sanitized JSON.parse also failed:", secondError);
@@ -95,12 +110,11 @@ For numerical: options should be null, negativeMarks should be 0.`;
     }
 
     const questions = parsed.questions || parsed;
-
     if (!Array.isArray(questions) || questions.length === 0) {
       throw new Error("No questions in response");
     }
 
-    console.log(`Successfully generated ${questions.length} questions`);
+    console.log(`Successfully generated ${questions.length} questions at level ${level}`);
 
     return new Response(JSON.stringify({ questions }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
