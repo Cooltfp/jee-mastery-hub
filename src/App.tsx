@@ -7,6 +7,7 @@ import Index from "./pages/Index.tsx";
 import TestPage from "./pages/TestPage.tsx";
 import ResultsPage from "./pages/ResultsPage.tsx";
 import DoubtSolverPage from "./pages/DoubtSolverPage.tsx";
+import PracticePage from "./pages/PracticePage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/test" element={<TestPage />} />
           <Route path="/results" element={<ResultsPage />} />
           <Route path="/doubt-solver" element={<DoubtSolverPage />} />
+          <Route path="/practice" element={<PracticePage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -1,23 +1,37 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TestResult } from "@/lib/testStore";
+import { LEVELS } from "@/lib/levelSystem";
+import { Progress } from "@/components/ui/progress";
 import MathText from "@/components/MathText";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, CheckCircle2, XCircle, MinusCircle, AlertTriangle, TrendingUp, Clock, Target, Brain } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, MinusCircle, AlertTriangle, TrendingUp, Clock, Target, Brain, Trophy } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
   PieChart, Pie, Cell, ResponsiveContainer, Legend,
 } from "recharts";
 
+interface EnrichedResult extends TestResult {
+  confidence?: string | null;
+  level?: number;
+  chapterName?: string | null;
+}
+
 const ResultsPage = () => {
   const navigate = useNavigate();
-  const [result, setResult] = useState<TestResult | null>(null);
+  const [result, setResult] = useState<EnrichedResult | null>(null);
   const [expandedQ, setExpandedQ] = useState<number | null>(null);
+  const [levelUnlocked, setLevelUnlocked] = useState<number | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("testResult");
     if (stored) setResult(JSON.parse(stored));
+    const unlocked = sessionStorage.getItem("levelUnlocked");
+    if (unlocked) {
+      setLevelUnlocked(Number(unlocked));
+      sessionStorage.removeItem("levelUnlocked");
+    }
   }, []);
 
   if (!result) {
@@ -33,12 +47,12 @@ const ResultsPage = () => {
     );
   }
 
-  const { score, maxScore, subjectWise, sillyErrors, questions, questionStates, totalTimeTaken } = result;
+  const { score, maxScore, subjectWise, sillyErrors, questions, questionStates, totalTimeTaken, confidence, level } = result;
   const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-  const totalAttempted = questions.length - subjectWise.physics.unattempted - subjectWise.chemistry.unattempted - subjectWise.math.unattempted;
   const totalCorrect = subjectWise.physics.correct + subjectWise.chemistry.correct + subjectWise.math.correct;
   const totalIncorrect = subjectWise.physics.incorrect + subjectWise.chemistry.incorrect + subjectWise.math.incorrect;
   const totalUnattempted = subjectWise.physics.unattempted + subjectWise.chemistry.unattempted + subjectWise.math.unattempted;
+  const totalAttempted = totalCorrect + totalIncorrect;
 
   const formatTime = (s: number) => {
     if (s < 60) return `${Math.round(s)}s`;
@@ -51,30 +65,25 @@ const ResultsPage = () => {
     { key: "math" as const, label: "Mathematics", data: subjectWise.math, color: "hsl(38, 92%, 50%)" },
   ];
 
-  // Radar chart data
   const radarData = subjects.map((s) => ({
     subject: s.label,
     accuracy: Math.round(s.data.accuracy),
     score: s.data.maxScore > 0 ? Math.round((s.data.score / s.data.maxScore) * 100) : 0,
   }));
 
-  // Time per question bar chart data
   const timeBarData = questionStates.map((qs, i) => ({
     name: `Q${i + 1}`,
     time: Math.round(qs.timeSpent),
-    subject: questions[i].subject,
     fill: questions[i].subject === "physics" ? "hsl(217, 91%, 60%)" :
           questions[i].subject === "chemistry" ? "hsl(142, 71%, 45%)" : "hsl(38, 92%, 50%)",
   }));
 
-  // Pie chart data
   const pieData = [
     { name: "Correct", value: totalCorrect, color: "hsl(142, 71%, 45%)" },
     { name: "Incorrect", value: totalIncorrect, color: "hsl(0, 72%, 51%)" },
     { name: "Unattempted", value: totalUnattempted, color: "hsl(215, 13%, 50%)" },
   ].filter(d => d.value > 0);
 
-  // Weak topics
   const weakTopics: { subject: string; topic: string; accuracy: number }[] = [];
   for (const subj of subjects) {
     for (const [topic, data] of Object.entries(subj.data.topics)) {
@@ -83,6 +92,19 @@ const ResultsPage = () => {
     }
   }
 
+  // Confidence gap analysis
+  const confidenceMap: Record<string, number> = { low: 1, moderate: 2, high: 3 };
+  const scoreLevel = percentage >= 70 ? 3 : percentage >= 40 ? 2 : 1;
+  const confLevel = confidence ? confidenceMap[confidence] || 2 : 2;
+  const confidenceGap = confLevel - scoreLevel;
+  const confidenceLabel = confidenceGap > 0 ? "Overconfident" : confidenceGap < 0 ? "Underconfident" : "Well Calibrated";
+  const confidenceColor = confidenceGap > 0 ? "text-destructive" : confidenceGap < 0 ? "text-[hsl(var(--physics))]" : "text-[hsl(var(--success))]";
+
+  // Level progress
+  const currentLevel = level || 3;
+  const unlockThreshold = 60;
+  const progressToNext = Math.min(100, (percentage / unlockThreshold) * 100);
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
@@ -90,20 +112,81 @@ const ResultsPage = () => {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <h1 className="font-semibold text-lg">Test Results & Analysis</h1>
+        {currentLevel && (
+          <span className="text-xs px-2 py-1 rounded-md bg-accent/10 text-accent font-medium ml-auto">
+            Level {currentLevel}
+          </span>
+        )}
       </header>
 
       <div className="max-w-5xl mx-auto p-6 space-y-8">
+        {/* Level Unlock Banner */}
+        {levelUnlocked && (
+          <div className="bg-accent/10 border border-accent/30 rounded-xl p-5 flex items-center gap-4">
+            <Trophy className="w-8 h-8 text-accent" />
+            <div>
+              <div className="font-bold text-base">🎉 Level {levelUnlocked} Unlocked!</div>
+              <p className="text-sm text-muted-foreground">You scored {percentage.toFixed(0)}% — Level {LEVELS[levelUnlocked - 1]?.name} is now available!</p>
+            </div>
+          </div>
+        )}
+
         {/* Score Overview */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <ScoreCard icon={<Target className="w-5 h-5 text-accent" />} label="Score" value={`${score}/${maxScore}`} sub={`${percentage.toFixed(1)}%`} />
-          <ScoreCard icon={<CheckCircle2 className="w-5 h-5 text-success" />} label="Correct" value={`${totalCorrect}`} sub={`of ${totalAttempted} attempted`} />
+          <ScoreCard icon={<CheckCircle2 className="w-5 h-5 text-[hsl(var(--success))]" />} label="Correct" value={`${totalCorrect}`} sub={`of ${totalAttempted} attempted`} />
           <ScoreCard icon={<Clock className="w-5 h-5 text-[hsl(var(--physics))]" />} label="Time Taken" value={formatTime(totalTimeTaken)} sub="of 60m" />
           <ScoreCard icon={<AlertTriangle className="w-5 h-5 text-destructive" />} label="Silly Errors" value={`${sillyErrors.length}`} sub={sillyErrors.length > 0 ? "Review below" : "Great focus!"} />
         </div>
 
+        {/* Level Progress & Confidence Gap */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="bg-card rounded-xl border p-5">
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-accent" /> Level Progress
+            </h3>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-xs text-muted-foreground">Level {currentLevel}</span>
+              <div className="flex-1">
+                <Progress value={progressToNext} className="h-2.5" />
+              </div>
+              <span className="text-xs text-muted-foreground">Level {Math.min(5, currentLevel + 1)}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {percentage >= unlockThreshold
+                ? `✅ You scored ${percentage.toFixed(0)}% — threshold met!`
+                : `Need ${unlockThreshold}% to unlock next level (currently ${percentage.toFixed(0)}%)`}
+            </p>
+          </div>
+
+          {confidence && (
+            <div className="bg-card rounded-xl border p-5">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Brain className="w-4 h-4 text-accent" /> Confidence Gap
+              </h3>
+              <div className="flex items-center gap-4">
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Your Confidence</div>
+                  <div className="text-lg font-bold capitalize">{confidence}</div>
+                </div>
+                <div className="text-2xl text-muted-foreground">→</div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Actual Score</div>
+                  <div className="text-lg font-bold">{percentage.toFixed(0)}%</div>
+                </div>
+                <div className="ml-auto text-right">
+                  <div className={`text-sm font-bold ${confidenceColor}`}>{confidenceLabel}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {confidenceGap > 0 ? "Lower expectations slightly" : confidenceGap < 0 ? "You're better than you think!" : "Perfect self-assessment"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Charts Row */}
         <section className="grid md:grid-cols-3 gap-6">
-          {/* Radar Chart */}
           <div className="bg-card rounded-xl border p-5">
             <h3 className="text-sm font-semibold mb-4">Subject Balance</h3>
             <ResponsiveContainer width="100%" height={220}>
@@ -118,15 +201,12 @@ const ResultsPage = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* Pie Chart */}
           <div className="bg-card rounded-xl border p-5">
             <h3 className="text-sm font-semibold mb-4">Accuracy Rate</h3>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" paddingAngle={3}>
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
+                  {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip formatter={(value: number) => [`${value} questions`, ""]} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -134,14 +214,12 @@ const ResultsPage = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* Subject-wise mini cards */}
           <div className="space-y-3">
             {subjects.map((subj) => (
               <div key={subj.key} className="bg-card rounded-xl border p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
-                    subj.key === "physics" ? "subject-physics" :
-                    subj.key === "chemistry" ? "subject-chemistry" : "subject-math"
+                    subj.key === "physics" ? "subject-physics" : subj.key === "chemistry" ? "subject-chemistry" : "subject-math"
                   }`}>{subj.label}</span>
                   <span className="text-sm font-semibold">{subj.data.score}/{subj.data.maxScore}</span>
                 </div>
@@ -157,7 +235,7 @@ const ResultsPage = () => {
           </div>
         </section>
 
-        {/* Time per Question Bar Chart */}
+        {/* Time Bar Chart */}
         <section className="bg-card rounded-xl border p-5">
           <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
             <Clock className="w-4 h-4" /> Time Spent per Question vs. 2-min Average
@@ -170,9 +248,7 @@ const ResultsPage = () => {
               <Tooltip formatter={(value: number) => [`${value}s`, "Time spent"]} />
               <ReferenceLine y={120} stroke="hsl(0, 72%, 51%)" strokeDasharray="5 5" label={{ value: "2 min avg", position: "right", style: { fontSize: 10, fill: "hsl(0, 72%, 51%)" } }} />
               <Bar dataKey="time" radius={[3, 3, 0, 0]}>
-                {timeBarData.map((entry, i) => (
-                  <Cell key={i} fill={entry.fill} />
-                ))}
+                {timeBarData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -193,7 +269,7 @@ const ResultsPage = () => {
                   const acc = d.total > 0 ? (d.correct / d.total) * 100 : 0;
                   return (
                     <div key={topic} className="flex items-center gap-2 text-xs">
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${acc >= 80 ? "bg-success" : acc >= 50 ? "bg-accent" : "bg-destructive"}`} />
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${acc >= 80 ? "bg-[hsl(var(--success))]" : acc >= 50 ? "bg-accent" : "bg-destructive"}`} />
                       <span className="truncate flex-1">{topic}</span>
                       <span className="text-muted-foreground">{d.correct}/{d.total}</span>
                     </div>
@@ -256,7 +332,7 @@ const ResultsPage = () => {
                 <div key={q.id} className="border rounded-lg overflow-hidden">
                   <button onClick={() => setExpandedQ(expandedQ === i ? null : i)}
                     className="w-full flex items-center gap-3 p-3 text-left hover:bg-secondary/50 transition-colors active:scale-[0.995]">
-                    {attempted ? (isCorrect ? <CheckCircle2 className="w-4 h-4 text-success shrink-0" /> : <XCircle className="w-4 h-4 text-destructive shrink-0" />) : <MinusCircle className="w-4 h-4 text-muted-foreground shrink-0" />}
+                    {attempted ? (isCorrect ? <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0" /> : <XCircle className="w-4 h-4 text-destructive shrink-0" />) : <MinusCircle className="w-4 h-4 text-muted-foreground shrink-0" />}
                     <span className="text-sm font-medium">Q{i + 1}</span>
                     <span className={`text-xs px-2 py-0.5 rounded ${q.subject === "physics" ? "subject-physics" : q.subject === "chemistry" ? "subject-chemistry" : "subject-math"}`}>{q.topic}</span>
                     <span className="text-xs text-muted-foreground ml-auto">{formatTime(state.timeSpent)}</span>
@@ -266,8 +342,8 @@ const ResultsPage = () => {
                       <MathText>{q.text}</MathText>
                       {attempted && (
                         <div className="text-sm">
-                          Your answer: <span className={isCorrect ? "text-success font-medium" : "text-destructive font-medium"}>{state.selectedAnswer}</span>
-                          {!isCorrect && <> • Correct: <span className="text-success font-medium">{q.correctAnswer}</span></>}
+                          Your answer: <span className={isCorrect ? "text-[hsl(var(--success))] font-medium" : "text-destructive font-medium"}>{state.selectedAnswer}</span>
+                          {!isCorrect && <> • Correct: <span className="text-[hsl(var(--success))] font-medium">{q.correctAnswer}</span></>}
                         </div>
                       )}
                       <div className="text-sm bg-card rounded-lg p-3 border">
