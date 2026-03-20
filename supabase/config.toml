@@ -1,1 +1,7 @@
 project_id = "qwewgcqcnipqzsayvceh"
+
+[functions.generate-questions]
+verify_jwt = false
+
+[functions.doubt-solver]
+verify_jwt = false
