@@ -136,7 +136,7 @@ $$E = mc^2$$
                 ? "bg-primary text-primary-foreground"
                 : "bg-card border"
             }`}>
-              {msg.role === "assistant" ? (
+              {msg.role !== "user" ? (
                 <MathText className={msg.role === "user" ? "text-primary-foreground" : ""}>
                   {msg.content}
                 </MathText>
