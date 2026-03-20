@@ -1,0 +1,280 @@
+export type QuestionType = "mcq" | "numerical";
+export type Subject = "physics" | "chemistry" | "math";
+export type Difficulty = "easy" | "medium" | "hard";
+
+export interface MCQOption {
+  id: string;
+  text: string;
+}
+
+export interface Question {
+  id: number;
+  subject: Subject;
+  type: QuestionType;
+  difficulty: Difficulty;
+  text: string;
+  options?: MCQOption[];
+  correctAnswer: string; // option id for MCQ, number string for numerical
+  explanation: string;
+  topic: string;
+  marks: number;
+  negativeMarks: number;
+}
+
+export const sampleQuestions: Question[] = [
+  // PHYSICS
+  {
+    id: 1,
+    subject: "physics",
+    type: "mcq",
+    difficulty: "easy",
+    text: "A ball is thrown vertically upward with velocity $u$. The time taken by the ball to reach the maximum height is:",
+    options: [
+      { id: "a", text: "$\\frac{u}{g}$" },
+      { id: "b", text: "$\\frac{u}{2g}$" },
+      { id: "c", text: "$\\frac{2u}{g}$" },
+      { id: "d", text: "$\\frac{u^2}{2g}$" },
+    ],
+    correctAnswer: "a",
+    explanation: "At maximum height, $v = 0$. Using $v = u - gt$, we get $t = \\frac{u}{g}$.",
+    topic: "Kinematics",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 2,
+    subject: "physics",
+    type: "mcq",
+    difficulty: "medium",
+    text: "A uniform rod of length $L$ and mass $M$ is pivoted at one end. The moment of inertia about the pivot is:",
+    options: [
+      { id: "a", text: "$\\frac{ML^2}{12}$" },
+      { id: "b", text: "$\\frac{ML^2}{3}$" },
+      { id: "c", text: "$\\frac{ML^2}{2}$" },
+      { id: "d", text: "$ML^2$" },
+    ],
+    correctAnswer: "b",
+    explanation: "Using the parallel axis theorem: $I = I_{cm} + Md^2 = \\frac{ML^2}{12} + M\\left(\\frac{L}{2}\\right)^2 = \\frac{ML^2}{3}$.",
+    topic: "Rotational Mechanics",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 3,
+    subject: "physics",
+    type: "numerical",
+    difficulty: "medium",
+    text: "Two resistors of $6\\,\\Omega$ and $3\\,\\Omega$ are connected in parallel across a $12\\,\\text{V}$ battery. Find the total current (in Amperes) drawn from the battery.",
+    correctAnswer: "6",
+    explanation: "Parallel: $\\frac{1}{R_{eq}} = \\frac{1}{6} + \\frac{1}{3} = \\frac{1}{2}$, so $R_{eq} = 2\\,\\Omega$. Current $I = \\frac{V}{R} = \\frac{12}{2} = 6\\,\\text{A}$.",
+    topic: "Current Electricity",
+    marks: 4,
+    negativeMarks: 0,
+  },
+  {
+    id: 4,
+    subject: "physics",
+    type: "mcq",
+    difficulty: "hard",
+    text: "In a Young's double-slit experiment, the slit separation is $d$, screen distance is $D$, and wavelength is $\\lambda$. The fringe width $\\beta$ is:",
+    options: [
+      { id: "a", text: "$\\frac{\\lambda D}{d}$" },
+      { id: "b", text: "$\\frac{\\lambda d}{D}$" },
+      { id: "c", text: "$\\frac{d D}{\\lambda}$" },
+      { id: "d", text: "$\\frac{d}{\\lambda D}$" },
+    ],
+    correctAnswer: "a",
+    explanation: "Fringe width $\\beta = \\frac{\\lambda D}{d}$. This is a standard result from the path difference analysis.",
+    topic: "Wave Optics",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 5,
+    subject: "physics",
+    type: "mcq",
+    difficulty: "easy",
+    text: "The dimensional formula for Planck's constant $h$ is:",
+    options: [
+      { id: "a", text: "$[ML^2T^{-1}]$" },
+      { id: "b", text: "$[MLT^{-2}]$" },
+      { id: "c", text: "$[ML^2T^{-2}]$" },
+      { id: "d", text: "$[M^2LT^{-1}]$" },
+    ],
+    correctAnswer: "a",
+    explanation: "Since $E = h\\nu$, we have $h = \\frac{E}{\\nu}$. Dimensions: $\\frac{[ML^2T^{-2}]}{[T^{-1}]} = [ML^2T^{-1}]$.",
+    topic: "Units & Dimensions",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  // CHEMISTRY
+  {
+    id: 6,
+    subject: "chemistry",
+    type: "mcq",
+    difficulty: "easy",
+    text: "Which of the following has the highest ionization energy?",
+    options: [
+      { id: "a", text: "$\\text{Na}$" },
+      { id: "b", text: "$\\text{Mg}$" },
+      { id: "c", text: "$\\text{Al}$" },
+      { id: "d", text: "$\\text{Ne}$" },
+    ],
+    correctAnswer: "d",
+    explanation: "Noble gases have completely filled orbitals, making them extremely stable. $\\text{Ne}$ has the highest IE among the options.",
+    topic: "Periodic Properties",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 7,
+    subject: "chemistry",
+    type: "mcq",
+    difficulty: "medium",
+    text: "The hybridization of the central atom in $\\text{SF}_6$ is:",
+    options: [
+      { id: "a", text: "$sp^3$" },
+      { id: "b", text: "$sp^3d$" },
+      { id: "c", text: "$sp^3d^2$" },
+      { id: "d", text: "$dsp^3$" },
+    ],
+    correctAnswer: "c",
+    explanation: "$\\text{SF}_6$ has 6 bond pairs and no lone pairs around S. This requires 6 hybrid orbitals → $sp^3d^2$ hybridization with octahedral geometry.",
+    topic: "Chemical Bonding",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 8,
+    subject: "chemistry",
+    type: "numerical",
+    difficulty: "medium",
+    text: "Calculate the pH of a $0.01\\,\\text{M}$ $\\text{HCl}$ solution. (Answer as integer)",
+    correctAnswer: "2",
+    explanation: "$\\text{HCl}$ is a strong acid. $[\\text{H}^+] = 0.01 = 10^{-2}\\,\\text{M}$. pH $= -\\log(10^{-2}) = 2$.",
+    topic: "Ionic Equilibrium",
+    marks: 4,
+    negativeMarks: 0,
+  },
+  {
+    id: 9,
+    subject: "chemistry",
+    type: "mcq",
+    difficulty: "hard",
+    text: "The IUPAC name of $\\text{CH}_3\\text{CH}(\\text{OH})\\text{CH}_2\\text{CHO}$ is:",
+    options: [
+      { id: "a", text: "3-hydroxybutanal" },
+      { id: "b", text: "2-hydroxybutanal" },
+      { id: "c", text: "3-hydroxybutanol" },
+      { id: "d", text: "4-hydroxybutanal" },
+    ],
+    correctAnswer: "a",
+    explanation: "Numbering starts from the aldehyde end (highest priority). The $-\\text{OH}$ group is on carbon 3. Hence, 3-hydroxybutanal.",
+    topic: "Organic Nomenclature",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 10,
+    subject: "chemistry",
+    type: "mcq",
+    difficulty: "easy",
+    text: "The number of moles in $44\\,\\text{g}$ of $\\text{CO}_2$ is:",
+    options: [
+      { id: "a", text: "0.5" },
+      { id: "b", text: "1" },
+      { id: "c", text: "2" },
+      { id: "d", text: "44" },
+    ],
+    correctAnswer: "b",
+    explanation: "Molar mass of $\\text{CO}_2 = 12 + 2(16) = 44\\,\\text{g/mol}$. Moles $= \\frac{44}{44} = 1$.",
+    topic: "Mole Concept",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  // MATH
+  {
+    id: 11,
+    subject: "math",
+    type: "mcq",
+    difficulty: "easy",
+    text: "The value of $\\displaystyle\\lim_{x \\to 0} \\frac{\\sin x}{x}$ is:",
+    options: [
+      { id: "a", text: "$0$" },
+      { id: "b", text: "$1$" },
+      { id: "c", text: "$\\infty$" },
+      { id: "d", text: "Does not exist" },
+    ],
+    correctAnswer: "b",
+    explanation: "This is a standard limit. $\\displaystyle\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1$.",
+    topic: "Limits & Continuity",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 12,
+    subject: "math",
+    type: "mcq",
+    difficulty: "medium",
+    text: "If $A = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}$, then $\\det(A)$ is:",
+    options: [
+      { id: "a", text: "$-2$" },
+      { id: "b", text: "$2$" },
+      { id: "c", text: "$10$" },
+      { id: "d", text: "$-10$" },
+    ],
+    correctAnswer: "a",
+    explanation: "$\\det(A) = (1)(4) - (2)(3) = 4 - 6 = -2$.",
+    topic: "Matrices & Determinants",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 13,
+    subject: "math",
+    type: "numerical",
+    difficulty: "medium",
+    text: "Find the value of $\\int_0^1 3x^2\\,dx$.",
+    correctAnswer: "1",
+    explanation: "$\\int_0^1 3x^2\\,dx = [x^3]_0^1 = 1 - 0 = 1$.",
+    topic: "Definite Integration",
+    marks: 4,
+    negativeMarks: 0,
+  },
+  {
+    id: 14,
+    subject: "math",
+    type: "mcq",
+    difficulty: "hard",
+    text: "The eccentricity of the ellipse $\\frac{x^2}{25} + \\frac{y^2}{16} = 1$ is:",
+    options: [
+      { id: "a", text: "$\\frac{3}{5}$" },
+      { id: "b", text: "$\\frac{4}{5}$" },
+      { id: "c", text: "$\\frac{5}{3}$" },
+      { id: "d", text: "$\\frac{3}{4}$" },
+    ],
+    correctAnswer: "a",
+    explanation: "$a^2 = 25,\\, b^2 = 16$. $c^2 = a^2 - b^2 = 9$. $e = \\frac{c}{a} = \\frac{3}{5}$.",
+    topic: "Conic Sections",
+    marks: 4,
+    negativeMarks: 1,
+  },
+  {
+    id: 15,
+    subject: "math",
+    type: "mcq",
+    difficulty: "easy",
+    text: "The number of ways to arrange the letters of the word 'EXAM' is:",
+    options: [
+      { id: "a", text: "12" },
+      { id: "b", text: "24" },
+      { id: "c", text: "6" },
+      { id: "d", text: "48" },
+    ],
+    correctAnswer: "b",
+    explanation: "EXAM has 4 distinct letters. Arrangements $= 4! = 24$.",
+    topic: "Permutations & Combinations",
+    marks: 4,
+    negativeMarks: 1,
+  },
+];
