@@ -268,8 +268,8 @@ const TestPage = () => {
         score: result.score,
         max_score: result.maxScore,
         total_time_taken: result.totalTimeTaken,
-        subject_wise: result.subjectWise,
-        silly_errors: result.sillyErrors,
+        subject_wise: JSON.parse(JSON.stringify(result.subjectWise)),
+        silly_errors: JSON.parse(JSON.stringify(result.sillyErrors)),
       }).eq("id", dbSessionId);
 
       // Save session ID for doubt solver context
