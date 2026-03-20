@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          created_at: string
+          device_id: string
+          highest_level_unlocked: number
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          highest_level_unlocked?: number
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          highest_level_unlocked?: number
+          id?: string
+        }
+        Relationships: []
+      }
       questions: {
         Row: {
           correct_answer: string
@@ -72,9 +93,13 @@ export type Database = {
       }
       test_sessions: {
         Row: {
+          chapter_name: string | null
+          confidence: string | null
           created_at: string
+          device_id: string | null
           id: string
           is_completed: boolean
+          level: number | null
           max_score: number | null
           score: number | null
           silly_errors: Json | null
@@ -82,9 +107,13 @@ export type Database = {
           total_time_taken: number | null
         }
         Insert: {
+          chapter_name?: string | null
+          confidence?: string | null
           created_at?: string
+          device_id?: string | null
           id?: string
           is_completed?: boolean
+          level?: number | null
           max_score?: number | null
           score?: number | null
           silly_errors?: Json | null
@@ -92,9 +121,13 @@ export type Database = {
           total_time_taken?: number | null
         }
         Update: {
+          chapter_name?: string | null
+          confidence?: string | null
           created_at?: string
+          device_id?: string | null
           id?: string
           is_completed?: boolean
+          level?: number | null
           max_score?: number | null
           score?: number | null
           silly_errors?: Json | null
