@@ -1,18 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { JEE_CHAPTERS, LEVELS, getProfile } from "@/lib/levelSystem";
-import { ArrowLeft, Atom, FlaskConical, Calculator, Lock, ChevronRight } from "lucide-react";
+import { JEE_CHAPTERS, LEVELS } from "@/lib/levelSystem";
+import { ArrowLeft, Atom, FlaskConical, Calculator, ChevronRight } from "lucide-react";
 
 const PracticePage = () => {
   const navigate = useNavigate();
-  const [highestUnlocked, setHighestUnlocked] = useState(1);
-
-  useEffect(() => {
-    getProfile().then((p) => {
-      if (p) setHighestUnlocked(p.highest_level_unlocked);
-    });
-  }, []);
 
   const subjects = [
     { key: "physics" as const, label: "Physics", icon: <Atom className="w-5 h-5" />, colorClass: "subject-physics" },
@@ -38,22 +31,17 @@ const PracticePage = () => {
       <div className="max-w-4xl mx-auto p-6 space-y-8">
         {/* Level Progress */}
         <div className="bg-card rounded-xl border p-5">
-          <h2 className="text-sm font-semibold mb-3">Your Level Progress</h2>
+          <h2 className="text-sm font-semibold mb-3">Difficulty Levels — All Open</h2>
           <div className="flex gap-2">
-            {LEVELS.map((lvl) => {
-              const unlocked = lvl.id <= highestUnlocked;
-              return (
-                <div
-                  key={lvl.id}
-                  className={`flex-1 text-center p-3 rounded-lg border ${
-                    unlocked ? "bg-accent/10 border-accent/30" : "bg-muted/30 border-border"
-                  }`}
-                >
-                  <div className="text-lg font-bold">{unlocked ? lvl.id : <Lock className="w-4 h-4 mx-auto text-muted-foreground" />}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{lvl.name}</div>
-                </div>
-              );
-            })}
+            {LEVELS.map((lvl) => (
+              <div
+                key={lvl.id}
+                className="flex-1 text-center p-3 rounded-lg border bg-accent/10 border-accent/30"
+              >
+                <div className="text-lg font-bold">{lvl.id}</div>
+                <div className="text-xs text-muted-foreground mt-1">{lvl.name}</div>
+              </div>
+            ))}
           </div>
         </div>
 

@@ -20,18 +20,21 @@ export type Database = {
           device_id: string
           highest_level_unlocked: number
           id: string
+          recommended_level: number | null
         }
         Insert: {
           created_at?: string
           device_id: string
           highest_level_unlocked?: number
           id?: string
+          recommended_level?: number | null
         }
         Update: {
           created_at?: string
           device_id?: string
           highest_level_unlocked?: number
           id?: string
+          recommended_level?: number | null
         }
         Relationships: []
       }

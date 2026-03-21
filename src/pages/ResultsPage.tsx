@@ -16,6 +16,7 @@ interface EnrichedResult extends TestResult {
   confidence?: string | null;
   level?: number;
   chapterName?: string | null;
+  recommendedLevel?: number;
 }
 
 const ResultsPage = () => {
@@ -47,7 +48,7 @@ const ResultsPage = () => {
     );
   }
 
-  const { score, maxScore, subjectWise, sillyErrors, questions, questionStates, totalTimeTaken, confidence, level } = result;
+  const { score, maxScore, subjectWise, sillyErrors, questions, questionStates, totalTimeTaken, confidence, level, recommendedLevel } = result;
   const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
   const totalCorrect = subjectWise.physics.correct + subjectWise.chemistry.correct + subjectWise.math.correct;
   const totalIncorrect = subjectWise.physics.incorrect + subjectWise.chemistry.incorrect + subjectWise.math.incorrect;
@@ -121,12 +122,26 @@ const ResultsPage = () => {
 
       <div className="max-w-5xl mx-auto p-6 space-y-8">
         {/* Level Unlock Banner */}
-        {levelUnlocked && (
-          <div className="bg-accent/10 border border-accent/30 rounded-xl p-5 flex items-center gap-4">
+        {/* Adaptive Level Recommendation */}
+        {recommendedLevel && recommendedLevel !== (level || 3) && (
+          <div className={`rounded-xl p-5 flex items-center gap-4 border ${
+            recommendedLevel > (level || 3)
+              ? "bg-[hsl(var(--success))]/10 border-[hsl(var(--success))]/30"
+              : "bg-accent/10 border-accent/30"
+          }`}>
             <Trophy className="w-8 h-8 text-accent" />
             <div>
-              <div className="font-bold text-base">🎉 Level {levelUnlocked} Unlocked!</div>
-              <p className="text-sm text-muted-foreground">You scored {percentage.toFixed(0)}% — Level {LEVELS[levelUnlocked - 1]?.name} is now available!</p>
+              {recommendedLevel > (level || 3) ? (
+                <>
+                  <div className="font-bold text-base">🎉 Level Up Recommended!</div>
+                  <p className="text-sm text-muted-foreground">You scored {percentage.toFixed(0)}% — we recommend <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> for your next test!</p>
+                </>
+              ) : (
+                <>
+                  <div className="font-bold text-base">💪 Build Your Foundations</div>
+                  <p className="text-sm text-muted-foreground">Level {level} seems challenging ({percentage.toFixed(0)}%). We recommend practicing <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> to strengthen your basics.</p>
+                </>
+              )}
             </div>
           </div>
         )}

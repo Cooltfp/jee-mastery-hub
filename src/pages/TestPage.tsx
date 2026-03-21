@@ -264,36 +264,55 @@ const TestPage = () => {
 
   const handleSubmit = async () => {
     if (!session) return;
-    saveCurrentQuestionTime();
 
-    const result = calculateResults(session);
+    // Save current question time inline to avoid stale closure
+    const finalStates = [...session.questionStates];
+    finalStates[session.currentQuestionIndex] = {
+      ...finalStates[session.currentQuestionIndex],
+      timeSpent: finalStates[session.currentQuestionIndex].timeSpent + questionTimerRef.current,
+    };
+    questionTimerRef.current = 0;
 
-    // Add confidence and level to result for analytics
+    const finalSession = { ...session, questionStates: finalStates };
+    const result = calculateResults(finalSession);
+
+    // Calculate adaptive recommendation
+    const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
+    const currentLevel = preTestConfig?.level || 3;
+    let recommendedLevel = currentLevel;
+    if (percentage > 75 && currentLevel < 5) {
+      recommendedLevel = currentLevel + 1;
+    } else if (percentage < 40 && currentLevel > 1) {
+      recommendedLevel = currentLevel - 1;
+    }
+
     const enrichedResult = {
       ...result,
       confidence: preTestConfig?.confidence || null,
-      level: preTestConfig?.level || 3,
+      level: currentLevel,
       chapterName: preTestConfig?.chapterName || null,
+      recommendedLevel,
     };
 
     sessionStorage.setItem("testResult", JSON.stringify(enrichedResult));
 
     if (dbSessionId) {
-      await supabase.from("test_sessions").update({
-        is_completed: true,
-        score: result.score,
-        max_score: result.maxScore,
-        total_time_taken: result.totalTimeTaken,
-        subject_wise: JSON.parse(JSON.stringify(result.subjectWise)),
-        silly_errors: JSON.parse(JSON.stringify(result.sillyErrors)),
-      }).eq("id", dbSessionId);
-
-      // Check level unlock
       const deviceId = getDeviceId();
-      const newLevel = await checkAndUnlockLevel(dbSessionId, deviceId);
-      if (newLevel) {
-        sessionStorage.setItem("levelUnlocked", String(newLevel));
-      }
+
+      await Promise.all([
+        supabase.from("test_sessions").update({
+          is_completed: true,
+          score: result.score,
+          max_score: result.maxScore,
+          total_time_taken: result.totalTimeTaken,
+          subject_wise: JSON.parse(JSON.stringify(result.subjectWise)),
+          silly_errors: JSON.parse(JSON.stringify(result.sillyErrors)),
+        }).eq("id", dbSessionId),
+
+        supabase.from("profiles").update({
+          recommended_level: recommendedLevel,
+        }).eq("device_id", deviceId),
+      ]);
 
       sessionStorage.setItem("lastSessionId", dbSessionId);
       sessionStorage.setItem("dbQuestionIds", JSON.stringify(dbQuestionIds));
