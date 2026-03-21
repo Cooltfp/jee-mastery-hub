@@ -45,19 +45,25 @@ const TestPage = () => {
           throw new Error("Invalid response from AI");
         }
 
-        const questions: Question[] = data.questions.map((q: any, i: number) => ({
-          id: i + 1,
-          subject: q.subject,
-          type: q.type,
-          difficulty: q.difficulty,
-          text: q.text,
-          options: q.options || undefined,
-          correctAnswer: q.correctAnswer,
-          explanation: q.explanation,
-          topic: q.topic,
-          marks: q.marks || 4,
-          negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
-        }));
+        const questions: Question[] = data.questions.map((q: any, i: number) => {
+          // Normalize subject: treat "mathematics", "maths", "math" all as "math"
+          let subject = (q.subject || "").toLowerCase().trim();
+          if (subject === "mathematics" || subject === "maths") subject = "math";
+
+          return {
+            id: i + 1,
+            subject,
+            type: q.type,
+            difficulty: q.difficulty,
+            text: q.text,
+            options: q.options || undefined,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            topic: q.topic,
+            marks: q.marks || 4,
+            negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
+          };
+        });
 
         setLoadingMessage("Saving to database...");
 
