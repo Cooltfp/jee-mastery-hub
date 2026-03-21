@@ -134,7 +134,7 @@ const ResultsPage = () => {
               {recommendedLevel > (level || 3) ? (
                 <>
                   <div className="font-bold text-base">🎉 Level Up Recommended!</div>
-                  <p className="text-sm text-muted-foreground">You scored {percentage.toFixed(0)}% — we recommend <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> for your next test!</p>
+                  <p className="text-sm text-muted-foreground">You scored {percentage.toFixed(0)}% (above 80%) — Mastery! Move to <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> for your next test!</p>
                 </>
               ) : (
                 <>
