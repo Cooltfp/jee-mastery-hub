@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LEVELS, JEE_CHAPTERS, getProfile, getDeviceId } from "@/lib/levelSystem";
-import { Lock, ChevronRight, Zap, Flame, Crown, Star, Shield, Atom, FlaskConical, Calculator } from "lucide-react";
+import { LEVELS, JEE_CHAPTERS, getProfile } from "@/lib/levelSystem";
+import { ChevronRight, Zap, Flame, Crown, Star, Shield, Atom, FlaskConical, Calculator } from "lucide-react";
 
 type Confidence = "low" | "moderate" | "high";
 
