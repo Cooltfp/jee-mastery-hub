@@ -5,8 +5,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function sanitizeJsonString(raw: string): string {
-  return raw.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+function cleanAiResponse(rawText: string): string {
+  const firstBrace = rawText.indexOf("{");
+  const lastBrace = rawText.lastIndexOf("}");
+
+  const extractedJson =
+    firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace
+      ? rawText.slice(firstBrace, lastBrace + 1)
+      : rawText;
+
+  // Mandatory sanitization for LaTeX and other backslash-heavy content
+  return extractedJson.replace(/\\/g, "\\\\");
 }
 
 const LEVEL_DESCRIPTIONS: Record<number, string> = {
@@ -34,7 +43,10 @@ serve(async (req) => {
       ? `IMPORTANT: Generate ALL 30 questions ONLY from the chapter/topic "${chapterName}". Do not include questions from other chapters.`
       : "";
 
-    const systemPrompt = `You are a JSON generator that creates JEE Mains questions. You MUST output ONLY valid JSON.
+    const systemPrompt = `You are a JSON-only response engine.
+Do not include any text, markdown code blocks, or explanations outside the JSON object.
+All math symbols must use double-escaped LaTeX.
+You MUST output ONLY valid JSON.
 
 CRITICAL: All LaTeX backslashes MUST be double-escaped for JSON. Use \\\\frac not \\frac, \\\\sqrt not \\sqrt, \\\\alpha not \\alpha, \\\\int not \\int, \\\\times not \\times, \\\\rightarrow not \\rightarrow.
 
@@ -91,27 +103,29 @@ For numerical: options should be null, negativeMarks should be 0.`;
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-    console.log("Response length:", content.length);
+    const text = data.choices?.[0]?.message?.content || "";
+    console.log("Response length:", text.length);
+    console.log("Raw AI Response:", text);
+
+    const cleanedText = cleanAiResponse(text);
 
     let parsed;
     try {
-      parsed = JSON.parse(content);
-    } catch {
-      console.warn("First JSON.parse failed, sanitizing LaTeX escapes...");
-      try {
-        parsed = JSON.parse(sanitizeJsonString(content));
-        console.log("Sanitized JSON.parse succeeded");
-      } catch (secondError) {
-        console.error("Sanitized JSON.parse also failed:", secondError);
-        console.log("Raw content (first 1000 chars):", content.substring(0, 1000));
-        throw new Error("Failed to parse AI response as JSON");
-      }
+      parsed = JSON.parse(cleanedText);
+    } catch (parseError) {
+      console.error("JSON parse failed after cleaning:", parseError);
+      return new Response(JSON.stringify({ error: "AI formatting error, please try again" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const questions = parsed.questions || parsed;
     if (!Array.isArray(questions) || questions.length === 0) {
-      throw new Error("No questions in response");
+      return new Response(JSON.stringify({ error: "AI formatting error, please try again" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     console.log(`Successfully generated ${questions.length} questions at level ${level}`);
