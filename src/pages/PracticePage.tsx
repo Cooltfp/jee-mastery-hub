@@ -38,22 +38,17 @@ const PracticePage = () => {
       <div className="max-w-4xl mx-auto p-6 space-y-8">
         {/* Level Progress */}
         <div className="bg-card rounded-xl border p-5">
-          <h2 className="text-sm font-semibold mb-3">Your Level Progress</h2>
+          <h2 className="text-sm font-semibold mb-3">Difficulty Levels — All Open</h2>
           <div className="flex gap-2">
-            {LEVELS.map((lvl) => {
-              const unlocked = lvl.id <= highestUnlocked;
-              return (
-                <div
-                  key={lvl.id}
-                  className={`flex-1 text-center p-3 rounded-lg border ${
-                    unlocked ? "bg-accent/10 border-accent/30" : "bg-muted/30 border-border"
-                  }`}
-                >
-                  <div className="text-lg font-bold">{unlocked ? lvl.id : <Lock className="w-4 h-4 mx-auto text-muted-foreground" />}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{lvl.name}</div>
-                </div>
-              );
-            })}
+            {LEVELS.map((lvl) => (
+              <div
+                key={lvl.id}
+                className="flex-1 text-center p-3 rounded-lg border bg-accent/10 border-accent/30"
+              >
+                <div className="text-lg font-bold">{lvl.id}</div>
+                <div className="text-xs text-muted-foreground mt-1">{lvl.name}</div>
+              </div>
+            ))}
           </div>
         </div>
 
