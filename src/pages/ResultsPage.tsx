@@ -48,7 +48,7 @@ const ResultsPage = () => {
     );
   }
 
-  const { score, maxScore, subjectWise, sillyErrors, questions, questionStates, totalTimeTaken, confidence, level } = result;
+  const { score, maxScore, subjectWise, sillyErrors, questions, questionStates, totalTimeTaken, confidence, level, recommendedLevel } = result;
   const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
   const totalCorrect = subjectWise.physics.correct + subjectWise.chemistry.correct + subjectWise.math.correct;
   const totalIncorrect = subjectWise.physics.incorrect + subjectWise.chemistry.incorrect + subjectWise.math.incorrect;
