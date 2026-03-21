@@ -6,13 +6,6 @@ import { ArrowLeft, Atom, FlaskConical, Calculator, ChevronRight } from "lucide-
 
 const PracticePage = () => {
   const navigate = useNavigate();
-  const [highestUnlocked, setHighestUnlocked] = useState(1);
-
-  useEffect(() => {
-    getProfile().then((p) => {
-      if (p) setHighestUnlocked(p.highest_level_unlocked);
-    });
-  }, []);
 
   const subjects = [
     { key: "physics" as const, label: "Physics", icon: <Atom className="w-5 h-5" />, colorClass: "subject-physics" },
