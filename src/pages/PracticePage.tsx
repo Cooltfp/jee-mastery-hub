@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { JEE_CHAPTERS, LEVELS, getProfile } from "@/lib/levelSystem";
-import { ArrowLeft, Atom, FlaskConical, Calculator, Lock, ChevronRight } from "lucide-react";
+import { JEE_CHAPTERS, LEVELS } from "@/lib/levelSystem";
+import { ArrowLeft, Atom, FlaskConical, Calculator, ChevronRight } from "lucide-react";
 
 const PracticePage = () => {
   const navigate = useNavigate();
