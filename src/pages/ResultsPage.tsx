@@ -16,6 +16,7 @@ interface EnrichedResult extends TestResult {
   confidence?: string | null;
   level?: number;
   chapterName?: string | null;
+  recommendedLevel?: number;
 }
 
 const ResultsPage = () => {
