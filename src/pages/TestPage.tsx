@@ -45,19 +45,25 @@ const TestPage = () => {
           throw new Error("Invalid response from AI");
         }
 
-        const questions: Question[] = data.questions.map((q: any, i: number) => ({
-          id: i + 1,
-          subject: q.subject,
-          type: q.type,
-          difficulty: q.difficulty,
-          text: q.text,
-          options: q.options || undefined,
-          correctAnswer: q.correctAnswer,
-          explanation: q.explanation,
-          topic: q.topic,
-          marks: q.marks || 4,
-          negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
-        }));
+        const questions: Question[] = data.questions.map((q: any, i: number) => {
+          // Normalize subject: treat "mathematics", "maths", "math" all as "math"
+          let subject = (q.subject || "").toLowerCase().trim();
+          if (subject === "mathematics" || subject === "maths") subject = "math";
+
+          return {
+            id: i + 1,
+            subject,
+            type: q.type,
+            difficulty: q.difficulty,
+            text: q.text,
+            options: q.options || undefined,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            topic: q.topic,
+            marks: q.marks || 4,
+            negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
+          };
+        });
 
         setLoadingMessage("Saving to database...");
 
@@ -280,9 +286,9 @@ const TestPage = () => {
     const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
     const currentLevel = preTestConfig?.level || 3;
     let recommendedLevel = currentLevel;
-    if (percentage > 75 && currentLevel < 5) {
+    if (percentage > 80 && currentLevel < 5) {
       recommendedLevel = currentLevel + 1;
-    } else if (percentage < 40 && currentLevel > 1) {
+    } else if (percentage < 50 && currentLevel > 1) {
       recommendedLevel = currentLevel - 1;
     }
 

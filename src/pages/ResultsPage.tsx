@@ -134,12 +134,12 @@ const ResultsPage = () => {
               {recommendedLevel > (level || 3) ? (
                 <>
                   <div className="font-bold text-base">🎉 Level Up Recommended!</div>
-                  <p className="text-sm text-muted-foreground">You scored {percentage.toFixed(0)}% — we recommend <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> for your next test!</p>
+                  <p className="text-sm text-muted-foreground">You scored {percentage.toFixed(0)}% (above 80%) — Mastery! Move to <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> for your next test!</p>
                 </>
               ) : (
                 <>
                   <div className="font-bold text-base">💪 Build Your Foundations</div>
-                  <p className="text-sm text-muted-foreground">Level {level} seems challenging ({percentage.toFixed(0)}%). We recommend practicing <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> to strengthen your basics.</p>
+                  <p className="text-sm text-muted-foreground">Foundation weak at Level {level} ({percentage.toFixed(0)}%, below 50%). Try <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> or specific Chapter practice to strengthen your basics.</p>
                 </>
               )}
             </div>
