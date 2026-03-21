@@ -43,12 +43,19 @@ serve(async (req) => {
       ? `IMPORTANT: Generate ALL 30 questions ONLY from the chapter/topic "${chapterName}". Do not include questions from other chapters.`
       : "";
 
-    const systemPrompt = `You are a JSON-only response engine.
+    const systemPrompt = `You are a JSON-only response engine for JEE Mains exam preparation.
 Do not include any text, markdown code blocks, or explanations outside the JSON object.
-All math symbols must use double-escaped LaTeX.
-You MUST output ONLY valid JSON.
+Output ONLY the raw JSON object starting with { and ending with }.
 
-CRITICAL: All LaTeX backslashes MUST be double-escaped for JSON. Use \\\\frac not \\frac, \\\\sqrt not \\sqrt, \\\\alpha not \\alpha, \\\\int not \\int, \\\\times not \\times, \\\\rightarrow not \\rightarrow.
+CRITICAL LATEX RULES:
+- You MUST use standard LaTeX for ALL math. Every math command MUST start with a backslash.
+- Use \\frac{a}{b} NOT frac{a}{b}. Use \\lambda NOT lambda. Use \\sqrt{x} NOT sqrt{x}.
+- Use \\alpha, \\beta, \\theta, \\mu, \\omega, \\pi, \\Delta, \\Sigma for Greek letters.
+- All LaTeX backslashes MUST be double-escaped for JSON safety: \\\\frac, \\\\sqrt, \\\\alpha, \\\\int, \\\\times, \\\\rightarrow, \\\\lambda, \\\\mu, \\\\theta.
+- Wrap inline math in $...$ and display math in $$...$$.
+- Example correct JSON value: "What is $\\\\frac{\\\\mu - 1}{\\\\lambda}$?"
+
+SUBJECT NAMING: Use exactly "physics", "chemistry", or "math" (lowercase). NEVER use "mathematics" or "maths".
 
 DIFFICULTY LEVEL: ${levelDesc}
 
@@ -57,12 +64,11 @@ ${chapterInstruction}
 Generate exactly 30 unique questions as a JSON object with a "questions" key.
 
 REQUIREMENTS:
-- ${chapterName ? `All 30 questions from "${chapterName}"` : "10 Physics, 10 Chemistry, 10 Mathematics questions"}
+- ${chapterName ? `All 30 questions from "${chapterName}"` : "10 Physics, 10 Chemistry, 10 Math questions"}
 - ${level <= 2 ? "Mostly easy questions with some medium" : level === 3 ? "3 easy, 4 medium, 3 hard per subject" : "Mostly medium and hard questions"}
 - Mix of MCQ (25) and Numerical (5, at least 1 per subject)
-- Use LaTeX for math with dollar signs: $...$ for inline, $$...$$ for display
 - Each MCQ: 4 options (a, b, c, d)
-- Numerical: answer is a single number
+- Numerical: options should be null, negativeMarks should be 0
 
 TOPICS: Physics (Mechanics, Electrodynamics, Optics, Thermodynamics, Modern Physics, Waves), Chemistry (Physical, Organic, Inorganic, Ionic Equilibrium, Mole Concept, Chemical Bonding), Math (Calculus, Algebra, Coordinate Geometry, Trigonometry, Probability, Vectors)
 

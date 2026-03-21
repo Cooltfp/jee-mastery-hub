@@ -286,9 +286,9 @@ const TestPage = () => {
     const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
     const currentLevel = preTestConfig?.level || 3;
     let recommendedLevel = currentLevel;
-    if (percentage > 75 && currentLevel < 5) {
+    if (percentage > 80 && currentLevel < 5) {
       recommendedLevel = currentLevel + 1;
-    } else if (percentage < 40 && currentLevel > 1) {
+    } else if (percentage < 50 && currentLevel > 1) {
       recommendedLevel = currentLevel - 1;
     }
 
