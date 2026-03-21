@@ -112,28 +112,23 @@ export default function PreTestDialog({ onStart }: { onStart: (config: PreTestCo
 
         <div className="space-y-3">
           {LEVELS.map((lvl) => {
-            const locked = lvl.id > highestUnlocked;
             const Icon = levelIcons[lvl.id - 1];
             const selected = selectedLevel === lvl.id;
             return (
               <button
                 key={lvl.id}
-                disabled={locked}
                 onClick={() => setSelectedLevel(lvl.id)}
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 active:scale-[0.99] ${
-                  locked
-                    ? "opacity-50 cursor-not-allowed border-border bg-muted/30"
-                    : selected
+                  selected
                     ? "border-accent bg-accent/5 shadow-sm"
                     : "border-border hover:border-muted-foreground/30 hover:shadow-sm"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                    locked ? "bg-muted text-muted-foreground" :
                     selected ? "bg-accent text-accent-foreground" : "bg-secondary text-foreground"
                   }`}>
-                    {locked ? <Lock className="w-4 h-4" /> : <Icon className="w-5 h-5" />}
+                    <Icon className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -142,7 +137,6 @@ export default function PreTestDialog({ onStart }: { onStart: (config: PreTestCo
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{lvl.description}</p>
                   </div>
-                  {locked && <span className="text-xs text-muted-foreground">Locked</span>}
                 </div>
               </button>
             );
