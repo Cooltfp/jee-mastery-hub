@@ -325,11 +325,20 @@ const TestPage = () => {
     // Calculate adaptive recommendation
     const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
     const currentLevel = preTestConfig?.level || 3;
+    // Dynamic level recommendation based on actual score
     let recommendedLevel = currentLevel;
-    if (percentage > 80 && currentLevel < 5) {
-      recommendedLevel = currentLevel + 1;
-    } else if (percentage < 50 && currentLevel > 1) {
-      recommendedLevel = currentLevel - 1;
+    if (percentage >= 90) {
+      recommendedLevel = Math.min(currentLevel + 1, 5);
+    } else if (percentage >= 80) {
+      recommendedLevel = currentLevel; // solid, stay
+    } else if (percentage >= 60) {
+      recommendedLevel = Math.max(currentLevel - 1, 1);
+    } else if (percentage >= 40) {
+      recommendedLevel = Math.max(Math.min(currentLevel - 2, 2), 1);
+    } else if (percentage >= 20) {
+      recommendedLevel = currentLevel >= 4 ? 1 : Math.max(currentLevel - 2, 1);
+    } else {
+      recommendedLevel = 1; // below 20% → start from basics
     }
 
     // Store which subjects were tested for the results page
