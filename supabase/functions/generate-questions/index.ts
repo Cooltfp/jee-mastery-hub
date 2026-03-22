@@ -24,7 +24,7 @@ function parsePlainTextQuestions(raw: string): any[] {
 
       const getField = (name: string): string => {
         const regex = new RegExp(
-          `^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|TYPE|DIFFICULTY|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`,
+          `^${name}:\\\\s*(.+?)(?=\\\\n(?:ID|SUBJECT|CHAPTER|TYPE|DIFFICULTY|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`,
           "ms"
         );
         const match = content.match(regex);
@@ -35,7 +35,6 @@ function parsePlainTextQuestions(raw: string): any[] {
       const questionText = getField("TEXT");
       if (!subject || !questionText) continue;
 
-      // Normalize subject
       let normalizedSubject = subject;
       if (normalizedSubject === "mathematics" || normalizedSubject === "maths") {
         normalizedSubject = "math";
@@ -43,8 +42,6 @@ function parsePlainTextQuestions(raw: string): any[] {
 
       const type = (getField("TYPE") || "mcq").toLowerCase().trim();
       const correctRaw = getField("CORRECT").toUpperCase().trim();
-
-      // Map A/B/C/D to a/b/c/d for frontend compatibility
       const correctMap: Record<string, string> = { A: "a", B: "b", C: "c", D: "d" };
       const correctAnswer = correctMap[correctRaw] || correctRaw.toLowerCase();
 
@@ -90,26 +87,52 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const body = await req.json().catch(() => ({}));
-    const level = Math.min(5, Math.max(1, body.level || 3));
-    const chapterName: string | null = body.chapter_name || null;
-    const levelDesc = LEVEL_DESCRIPTIONS[level];
+    const globalLevel = Math.min(5, Math.max(1, body.level || 3));
 
-    const chapterInstruction = chapterName
-      ? `IMPORTANT: Generate ALL 30 questions ONLY from the chapter/topic "${chapterName}". Do not include questions from other chapters.`
-      : "Generate 10 Physics, 10 Chemistry, 10 Mathematics questions.";
+    // ─── Build subject instructions from either `selections` or legacy params ───
+    let totalQuestions = 30;
+    let subjectInstructions = "";
+    let topicHints = "";
 
-    const subjectTopics = chapterName
-      ? ""
-      : `TOPICS: Physics (Mechanics, Electrodynamics, Optics, Thermodynamics, Modern Physics, Waves), Chemistry (Physical, Organic, Inorganic, Ionic Equilibrium, Mole Concept, Chemical Bonding), Mathematics (Calculus, Algebra, Coordinate Geometry, Trigonometry, Probability, Vectors)`;
+    if (body.selections && Array.isArray(body.selections) && body.selections.length > 0) {
+      // NEW: multi-subject selections format
+      const perSubject = body.questions_per_subject || 10;
+      totalQuestions = body.selections.length * perSubject;
 
-    const systemPrompt = `You are a JEE Mains question paper setter. Generate exactly 30 unique questions.
+      const subjectMap: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
 
-DIFFICULTY LEVEL: ${levelDesc}
+      for (const sel of body.selections) {
+        const subjectName = subjectMap[sel.subject] || sel.subject;
+        const selLevel = Math.min(5, Math.max(1, sel.level || globalLevel));
+        const levelDesc = LEVEL_DESCRIPTIONS[selLevel];
+        const chapterPart = sel.chapters && sel.chapters.length > 0
+          ? `ONLY from these chapters: ${sel.chapters.join(", ")}`
+          : "from any chapter";
 
-${chapterInstruction}
-${subjectTopics}
+        subjectInstructions += `- Exactly ${perSubject} questions for ${subjectName} at ${levelDesc}, ${chapterPart}\n`;
+      }
+    } else {
+      // LEGACY: single chapter_name + level
+      const chapterName: string | null = body.chapter_name || null;
+      const levelDesc = LEVEL_DESCRIPTIONS[globalLevel];
 
-Mix of MCQ (25) and Numerical (5, at least 1 per subject).
+      if (chapterName) {
+        subjectInstructions = `IMPORTANT: Generate ALL 30 questions ONLY from the chapter/topic "${chapterName}" at ${levelDesc}. Do not include questions from other chapters.`;
+      } else {
+        subjectInstructions = `Generate 10 Physics, 10 Chemistry, 10 Mathematics questions at ${levelDesc}.`;
+        topicHints = `TOPICS: Physics (Mechanics, Electrodynamics, Optics, Thermodynamics, Modern Physics, Waves), Chemistry (Physical, Organic, Inorganic, Ionic Equilibrium, Mole Concept, Chemical Bonding), Mathematics (Calculus, Algebra, Coordinate Geometry, Trigonometry, Probability, Vectors)`;
+      }
+    }
+
+    const mcqCount = Math.max(1, totalQuestions - Math.ceil(totalQuestions / 6));
+    const numCount = totalQuestions - mcqCount;
+
+    const systemPrompt = `You are a JEE Mains question paper setter. Generate exactly ${totalQuestions} unique questions.
+
+${subjectInstructions}
+${topicHints}
+
+Mix of MCQ (${mcqCount}) and Numerical (${numCount}, at least 1 per subject).
 For Numerical questions: OPTION_A through OPTION_D should say "Numerical Answer" and CORRECT should be the numerical value.
 
 RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS. DO NOT wrap in \`\`\`.
@@ -138,7 +161,7 @@ CRITICAL LaTeX RULES:
 - Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\omega$, $\\pi$, $\\phi$
 - Operators: $\\times$, $\\div$, $\\pm$, $\\leq$, $\\geq$, $\\neq$, $\\approx$
 - Integrals: $\\int_0^1 x^2 \\, dx$
-- NEVER write bare commands without backslashes (e.g., never write "frac", always write "$\\frac{}{}")
+- NEVER write bare commands without backslashes (e.g., never write "frac", always write "$\\frac{}{}$")
 
 EXAMPLE:
 ===QUESTION===
@@ -156,7 +179,7 @@ CORRECT: A
 SOLUTION: Using Gauss's law with a cylindrical Gaussian surface, $E \\cdot 2\\pi r L = \\frac{\\lambda L}{\\epsilon_0}$, giving $E = \\frac{\\lambda}{2\\pi\\epsilon_0 r}$.
 ===END===
 
-Now generate exactly 30 questions. Start immediately with ===QUESTION=== — no preamble.`;
+Now generate exactly ${totalQuestions} questions. Start immediately with ===QUESTION=== — no preamble.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -168,9 +191,8 @@ Now generate exactly 30 questions. Start immediately with ===QUESTION=== — no 
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate 30 JEE Mains questions at Level ${level}${chapterName ? ` for chapter "${chapterName}"` : ""}. Use the exact plain text template. All math in $dollar signs$ with proper \\backslash commands.` },
+          { role: "user", content: `Generate ${totalQuestions} JEE Mains questions. Use the exact plain text template. All math in $dollar signs$ with proper \\backslash commands.` },
         ],
-        // NO response_format — we want plain text, NOT JSON
       }),
     });
 
