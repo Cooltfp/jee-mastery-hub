@@ -95,21 +95,29 @@ serve(async (req) => {
     let topicHints = "";
 
     if (body.selections && Array.isArray(body.selections) && body.selections.length > 0) {
-      // NEW: multi-subject selections format
-      const perSubject = body.questions_per_subject || 10;
-      totalQuestions = body.selections.length * perSubject;
-
+      // NEW: multi-subject selections format with per-subject question counts
       const subjectMap: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
 
+      totalQuestions = 0;
       for (const sel of body.selections) {
         const subjectName = subjectMap[sel.subject] || sel.subject;
         const selLevel = Math.min(5, Math.max(1, sel.level || globalLevel));
         const levelDesc = LEVEL_DESCRIPTIONS[selLevel];
-        const chapterPart = sel.chapters && sel.chapters.length > 0
-          ? `ONLY from these chapters: ${sel.chapters.join(", ")}`
-          : "from any chapter";
+        const selCount = sel.totalQuestions || 10;
+        totalQuestions += selCount;
 
-        subjectInstructions += `- Exactly ${perSubject} questions for ${subjectName} at ${levelDesc}, ${chapterPart}\n`;
+        // If per-chapter question counts provided, build detailed instructions
+        if (sel.questionsPerChapter && Object.keys(sel.questionsPerChapter).length > 0) {
+          let chapterDetails = "";
+          for (const [ch, count] of Object.entries(sel.questionsPerChapter)) {
+            chapterDetails += `  * ${count} questions from "${ch}"\n`;
+          }
+          subjectInstructions += `- ${selCount} questions for ${subjectName} at ${levelDesc}, distributed as:\n${chapterDetails}`;
+        } else if (sel.chapters && sel.chapters.length > 0) {
+          subjectInstructions += `- ${selCount} questions for ${subjectName} at ${levelDesc}, ONLY from these chapters: ${sel.chapters.join(", ")}\n`;
+        } else {
+          subjectInstructions += `- ${selCount} questions for ${subjectName} at ${levelDesc}, from any chapter\n`;
+        }
       }
     } else {
       // LEGACY: single chapter_name + level
