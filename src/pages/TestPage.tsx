@@ -423,7 +423,7 @@ const TestPage = () => {
                 )}
               </div>
               <div className="text-base leading-relaxed">
-                <MathText>{currentQ.text}</MathText>
+                <MathRenderer>{currentQ.text}</MathRenderer>
               </div>
             </div>
 
