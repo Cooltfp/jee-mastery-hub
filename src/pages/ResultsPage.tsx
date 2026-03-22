@@ -354,7 +354,7 @@ const ResultsPage = () => {
                   </button>
                   {expandedQ === i && (
                     <div className="p-4 border-t bg-muted/30 space-y-3">
-                      <MathText>{q.text}</MathText>
+                      <MathRenderer>{q.text}</MathRenderer>
                       {attempted && (
                         <div className="text-sm">
                           Your answer: <span className={isCorrect ? "text-[hsl(var(--success))] font-medium" : "text-destructive font-medium"}>{state.selectedAnswer}</span>
