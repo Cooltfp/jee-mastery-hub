@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { TestResult } from "@/lib/testStore";
 import { LEVELS } from "@/lib/levelSystem";
 import { Progress } from "@/components/ui/progress";
-import MathText from "@/components/MathText";
+import MathRenderer from "@/components/MathRenderer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CheckCircle2, XCircle, MinusCircle, AlertTriangle, TrendingUp, Clock, Target, Brain, Trophy } from "lucide-react";
 import {
