@@ -5,26 +5,82 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function cleanAiResponse(rawText: string): string {
-  const firstBrace = rawText.indexOf("{");
-  const lastBrace = rawText.lastIndexOf("}");
-
-  const extractedJson =
-    firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace
-      ? rawText.slice(firstBrace, lastBrace + 1)
-      : rawText;
-
-  // Mandatory sanitization for LaTeX and other backslash-heavy content
-  return extractedJson.replace(/\\/g, "\\\\");
-}
-
 const LEVEL_DESCRIPTIONS: Record<number, string> = {
-  1: "Level 1 (Foundational): Direct formula-based questions. Single-step calculations. Test basic concept recall. Easy difficulty only.",
+  1: "Level 1 (Foundational): Direct formula-based questions. Single-step calculations. Easy difficulty only.",
   2: "Level 2 (Standard): Standard textbook problems. Two-step calculations. Mix of easy and medium difficulty.",
   3: "Level 3 (JEE Mains): Exact JEE Mains difficulty with multi-step logic. Application-based MCQs. Mix of easy, medium, and hard.",
   4: "Level 4 (Intense): Above-average JEE Mains difficulty. Multi-step problems requiring strong conceptual clarity. Mostly medium and hard.",
-  5: "Level 5 (Challenger): Multi-concept questions mixing topics (e.g., Physics with Calculus, Thermodynamics with Chemistry). All hard difficulty. Requires deep understanding.",
+  5: "Level 5 (Challenger): Multi-concept questions mixing topics. All hard difficulty. Requires deep understanding.",
 };
+
+function parsePlainTextQuestions(raw: string): any[] {
+  const questions: any[] = [];
+  const blocks = raw.split("===QUESTION===").filter(b => b.trim());
+
+  for (const block of blocks) {
+    try {
+      const content = block.split("===END===")[0];
+      if (!content || !content.trim()) continue;
+
+      const getField = (name: string): string => {
+        const regex = new RegExp(
+          `^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|TYPE|DIFFICULTY|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`,
+          "ms"
+        );
+        const match = content.match(regex);
+        return match ? match[1].trim() : "";
+      };
+
+      const subject = getField("SUBJECT").toLowerCase().trim();
+      const questionText = getField("TEXT");
+      if (!subject || !questionText) continue;
+
+      // Normalize subject
+      let normalizedSubject = subject;
+      if (normalizedSubject === "mathematics" || normalizedSubject === "maths") {
+        normalizedSubject = "math";
+      }
+
+      const type = (getField("TYPE") || "mcq").toLowerCase().trim();
+      const correctRaw = getField("CORRECT").toUpperCase().trim();
+
+      // Map A/B/C/D to a/b/c/d for frontend compatibility
+      const correctMap: Record<string, string> = { A: "a", B: "b", C: "c", D: "d" };
+      const correctAnswer = correctMap[correctRaw] || correctRaw.toLowerCase();
+
+      const optA = getField("OPTION_A");
+      const optB = getField("OPTION_B");
+      const optC = getField("OPTION_C");
+      const optD = getField("OPTION_D");
+
+      const options = type === "mcq" && (optA || optB || optC || optD)
+        ? [
+            { id: "a", text: optA },
+            { id: "b", text: optB },
+            { id: "c", text: optC },
+            { id: "d", text: optD },
+          ]
+        : null;
+
+      questions.push({
+        subject: normalizedSubject,
+        type,
+        difficulty: getField("DIFFICULTY") || "medium",
+        text: questionText,
+        options,
+        correctAnswer,
+        explanation: getField("SOLUTION"),
+        topic: getField("CHAPTER") || "General",
+        marks: 4,
+        negativeMarks: type === "numerical" ? 0 : 1,
+      });
+    } catch (e) {
+      console.error("Failed to parse question block:", e);
+      continue;
+    }
+  }
+  return questions;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -36,45 +92,71 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const level = Math.min(5, Math.max(1, body.level || 3));
     const chapterName: string | null = body.chapter_name || null;
-
     const levelDesc = LEVEL_DESCRIPTIONS[level];
 
     const chapterInstruction = chapterName
       ? `IMPORTANT: Generate ALL 30 questions ONLY from the chapter/topic "${chapterName}". Do not include questions from other chapters.`
-      : "";
+      : "Generate 10 Physics, 10 Chemistry, 10 Mathematics questions.";
 
-    const systemPrompt = `You are a JSON-only response engine for JEE Mains exam preparation.
-Do not include any text, markdown code blocks, or explanations outside the JSON object.
-Output ONLY the raw JSON object starting with { and ending with }.
+    const subjectTopics = chapterName
+      ? ""
+      : `TOPICS: Physics (Mechanics, Electrodynamics, Optics, Thermodynamics, Modern Physics, Waves), Chemistry (Physical, Organic, Inorganic, Ionic Equilibrium, Mole Concept, Chemical Bonding), Mathematics (Calculus, Algebra, Coordinate Geometry, Trigonometry, Probability, Vectors)`;
 
-CRITICAL LATEX RULES:
-- You MUST use standard LaTeX for ALL math. Every math command MUST start with a backslash.
-- Use \\frac{a}{b} NOT frac{a}{b}. Use \\lambda NOT lambda. Use \\sqrt{x} NOT sqrt{x}.
-- Use \\alpha, \\beta, \\theta, \\mu, \\omega, \\pi, \\Delta, \\Sigma for Greek letters.
-- All LaTeX backslashes MUST be double-escaped for JSON safety: \\\\frac, \\\\sqrt, \\\\alpha, \\\\int, \\\\times, \\\\rightarrow, \\\\lambda, \\\\mu, \\\\theta.
-- Wrap inline math in $...$ and display math in $$...$$.
-- Example correct JSON value: "What is $\\\\frac{\\\\mu - 1}{\\\\lambda}$?"
-
-SUBJECT NAMING: Use exactly "physics", "chemistry", or "math" (lowercase). NEVER use "mathematics" or "maths".
+    const systemPrompt = `You are a JEE Mains question paper setter. Generate exactly 30 unique questions.
 
 DIFFICULTY LEVEL: ${levelDesc}
 
 ${chapterInstruction}
+${subjectTopics}
 
-Generate exactly 30 unique questions as a JSON object with a "questions" key.
+Mix of MCQ (25) and Numerical (5, at least 1 per subject).
+For Numerical questions: OPTION_A through OPTION_D should say "Numerical Answer" and CORRECT should be the numerical value.
 
-REQUIREMENTS:
-- ${chapterName ? `All 30 questions from "${chapterName}"` : "10 Physics, 10 Chemistry, 10 Math questions"}
-- ${level <= 2 ? "Mostly easy questions with some medium" : level === 3 ? "3 easy, 4 medium, 3 hard per subject" : "Mostly medium and hard questions"}
-- Mix of MCQ (25) and Numerical (5, at least 1 per subject)
-- Each MCQ: 4 options (a, b, c, d)
-- Numerical: options should be null, negativeMarks should be 0
+RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS. DO NOT wrap in \`\`\`.
 
-TOPICS: Physics (Mechanics, Electrodynamics, Optics, Thermodynamics, Modern Physics, Waves), Chemistry (Physical, Organic, Inorganic, Ionic Equilibrium, Mole Concept, Chemical Bonding), Math (Calculus, Algebra, Coordinate Geometry, Trigonometry, Probability, Vectors)
+For each question, use this exact template:
 
-JSON format:
-{"questions": [{"subject":"physics","type":"mcq","difficulty":"easy","text":"...","options":[{"id":"a","text":"..."},{"id":"b","text":"..."},{"id":"c","text":"..."},{"id":"d","text":"..."}],"correctAnswer":"a","explanation":"...","topic":"...","marks":4,"negativeMarks":1}]}
-For numerical: options should be null, negativeMarks should be 0.`;
+===QUESTION===
+ID: (number)
+SUBJECT: (Physics or Chemistry or Mathematics)
+CHAPTER: (chapter name)
+TYPE: (mcq or numerical)
+DIFFICULTY: (easy, medium, or hard)
+TEXT: (question text with LaTeX in dollar signs)
+OPTION_A: (option with LaTeX in dollar signs)
+OPTION_B: (option with LaTeX in dollar signs)
+OPTION_C: (option with LaTeX in dollar signs)
+OPTION_D: (option with LaTeX in dollar signs)
+CORRECT: (A or B or C or D, or numerical value for numerical type)
+SOLUTION: (step by step explanation with LaTeX in dollar signs)
+===END===
+
+CRITICAL LaTeX RULES:
+- ALL math expressions MUST be wrapped in dollar signs: $\\frac{a}{b}$ for inline
+- Use proper LaTeX commands with backslashes: $\\frac{1}{2}$, $\\sqrt{3}$, $\\lambda$, $\\epsilon_0$, $\\alpha$, $\\theta$, $\\mu$
+- Subscripts: $v_0$, $\\rho_0$. Superscripts: $x^2$, $e^{-x}$
+- Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\omega$, $\\pi$, $\\phi$
+- Operators: $\\times$, $\\div$, $\\pm$, $\\leq$, $\\geq$, $\\neq$, $\\approx$
+- Integrals: $\\int_0^1 x^2 \\, dx$
+- NEVER write bare commands without backslashes (e.g., never write "frac", always write "$\\frac{}{}")
+
+EXAMPLE:
+===QUESTION===
+ID: 1
+SUBJECT: Physics
+CHAPTER: Electrostatics
+TYPE: mcq
+DIFFICULTY: medium
+TEXT: The electric field at distance $r$ from an infinite line charge with linear charge density $\\lambda$ is:
+OPTION_A: $\\frac{\\lambda}{2\\pi\\epsilon_0 r}$
+OPTION_B: $\\frac{\\lambda}{4\\pi\\epsilon_0 r^2}$
+OPTION_C: $\\frac{\\lambda}{2\\pi\\epsilon_0 r^2}$
+OPTION_D: $\\frac{\\lambda r}{4\\pi\\epsilon_0}$
+CORRECT: A
+SOLUTION: Using Gauss's law with a cylindrical Gaussian surface, $E \\cdot 2\\pi r L = \\frac{\\lambda L}{\\epsilon_0}$, giving $E = \\frac{\\lambda}{2\\pi\\epsilon_0 r}$.
+===END===
+
+Now generate exactly 30 questions. Start immediately with ===QUESTION=== — no preamble.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -86,9 +168,9 @@ For numerical: options should be null, negativeMarks should be 0.`;
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate 30 questions at Level ${level}${chapterName ? ` for chapter "${chapterName}"` : ""}. Double-escape ALL LaTeX backslashes for valid JSON.` },
+          { role: "user", content: `Generate 30 JEE Mains questions at Level ${level}${chapterName ? ` for chapter "${chapterName}"` : ""}. Use the exact plain text template. All math in $dollar signs$ with proper \\backslash commands.` },
         ],
-        response_format: { type: "json_object" },
+        // NO response_format — we want plain text, NOT JSON
       }),
     });
 
@@ -109,32 +191,21 @@ For numerical: options should be null, negativeMarks should be 0.`;
     }
 
     const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || "";
-    console.log("Response length:", text.length);
-    console.log("Raw AI Response:", text);
+    const rawText = data.choices?.[0]?.message?.content || "";
 
-    const cleanedText = cleanAiResponse(text);
+    console.log("Raw response length:", rawText.length);
+    console.log("First 500 chars:", rawText.substring(0, 500));
 
-    let parsed;
-    try {
-      parsed = JSON.parse(cleanedText);
-    } catch (parseError) {
-      console.error("JSON parse failed after cleaning:", parseError);
+    const questions = parsePlainTextQuestions(rawText);
+    console.log("Parsed questions count:", questions.length);
+
+    if (questions.length === 0) {
+      console.error("No questions parsed. Full response:", rawText.substring(0, 2000));
       return new Response(JSON.stringify({ error: "AI formatting error, please try again" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const questions = parsed.questions || parsed;
-    if (!Array.isArray(questions) || questions.length === 0) {
-      return new Response(JSON.stringify({ error: "AI formatting error, please try again" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    console.log(`Successfully generated ${questions.length} questions at level ${level}`);
 
     return new Response(JSON.stringify({ questions }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
