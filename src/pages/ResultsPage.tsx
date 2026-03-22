@@ -363,7 +363,7 @@ const ResultsPage = () => {
                       )}
                       <div className="text-sm bg-card rounded-lg p-3 border">
                         <div className="text-xs font-medium text-muted-foreground mb-1">Explanation</div>
-                        <MathText>{q.explanation}</MathText>
+                        <MathRenderer>{q.explanation}</MathRenderer>
                       </div>
                     </div>
                   )}

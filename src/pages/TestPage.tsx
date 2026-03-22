@@ -447,7 +447,7 @@ const TestPage = () => {
                       }`}>
                         {opt.id.toUpperCase()}
                       </span>
-                      <MathText>{opt.text}</MathText>
+                      <MathRenderer>{opt.text}</MathRenderer>
                     </div>
                   </button>
                 ))}
