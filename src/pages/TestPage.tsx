@@ -5,7 +5,7 @@ import { QuestionState, TestSession, calculateResults } from "@/lib/testStore";
 import { supabase } from "@/integrations/supabase/client";
 import { getDeviceId, checkAndUnlockLevel } from "@/lib/levelSystem";
 import PreTestDialog, { PreTestConfig } from "@/components/PreTestDialog";
-import MathText from "@/components/MathText";
+import MathRenderer from "@/components/MathRenderer";
 import { Button } from "@/components/ui/button";
 import { Clock, ChevronLeft, ChevronRight, Flag, Send, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -423,7 +423,7 @@ const TestPage = () => {
                 )}
               </div>
               <div className="text-base leading-relaxed">
-                <MathText>{currentQ.text}</MathText>
+                <MathRenderer>{currentQ.text}</MathRenderer>
               </div>
             </div>
 
@@ -447,7 +447,7 @@ const TestPage = () => {
                       }`}>
                         {opt.id.toUpperCase()}
                       </span>
-                      <MathText>{opt.text}</MathText>
+                      <MathRenderer>{opt.text}</MathRenderer>
                     </div>
                   </button>
                 ))}

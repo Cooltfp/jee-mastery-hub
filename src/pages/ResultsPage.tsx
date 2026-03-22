@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { TestResult } from "@/lib/testStore";
 import { LEVELS } from "@/lib/levelSystem";
 import { Progress } from "@/components/ui/progress";
-import MathText from "@/components/MathText";
+import MathRenderer from "@/components/MathRenderer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CheckCircle2, XCircle, MinusCircle, AlertTriangle, TrendingUp, Clock, Target, Brain, Trophy } from "lucide-react";
 import {
@@ -354,7 +354,7 @@ const ResultsPage = () => {
                   </button>
                   {expandedQ === i && (
                     <div className="p-4 border-t bg-muted/30 space-y-3">
-                      <MathText>{q.text}</MathText>
+                      <MathRenderer>{q.text}</MathRenderer>
                       {attempted && (
                         <div className="text-sm">
                           Your answer: <span className={isCorrect ? "text-[hsl(var(--success))] font-medium" : "text-destructive font-medium"}>{state.selectedAnswer}</span>
@@ -363,7 +363,7 @@ const ResultsPage = () => {
                       )}
                       <div className="text-sm bg-card rounded-lg p-3 border">
                         <div className="text-xs font-medium text-muted-foreground mb-1">Explanation</div>
-                        <MathText>{q.explanation}</MathText>
+                        <MathRenderer>{q.explanation}</MathRenderer>
                       </div>
                     </div>
                   )}

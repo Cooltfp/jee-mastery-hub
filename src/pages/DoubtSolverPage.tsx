@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import MathText from "@/components/MathText";
+import MathRenderer from "@/components/MathRenderer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Bot, User, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -181,7 +181,7 @@ const DoubtSolverPage = () => {
             <div className={`max-w-2xl rounded-xl px-4 py-3 ${
               msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-card border"
             }`}>
-              {msg.role === "assistant" ? <MathText>{msg.content}</MathText> : <p className="text-sm">{msg.content}</p>}
+              {msg.role === "assistant" ? <MathRenderer>{msg.content}</MathRenderer> : <p className="text-sm">{msg.content}</p>}
             </div>
             {msg.role === "user" && (
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
