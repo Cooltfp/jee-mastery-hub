@@ -43,8 +43,10 @@ const TestPage = () => {
             subject: sel.subject,
             chapters: sel.chapters,
             level: sel.level || preTestConfig.level,
+            totalQuestions: sel.totalQuestions || 10,
+            questionsPerChapter: sel.questionsPerChapter || undefined,
           }));
-          requestBody.questions_per_subject = 10;
+          requestBody.total_questions = preTestConfig.totalQuestions || preTestConfig.selections.length * 10;
         } else if (preTestConfig.chapterName) {
           requestBody.chapter_name = preTestConfig.chapterName;
         }
