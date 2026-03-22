@@ -58,6 +58,9 @@ const TestPage = () => {
           throw new Error("Invalid response from AI");
         }
 
+        // Get the list of selected subject keys for filtering
+        const selectedSubjectKeys = preTestConfig.selections?.map(s => s.subject) || [];
+
         const questions: Question[] = data.questions.map((q: any, i: number) => {
           // Normalize subject: treat "mathematics", "maths", "math" all as "math"
           let subject = (q.subject || "").toLowerCase().trim();
@@ -76,7 +79,14 @@ const TestPage = () => {
             marks: q.marks || 4,
             negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
           };
+        }).filter((q: Question) => {
+          // Filter to only selected subjects — if backend returns extra subjects, drop them
+          if (selectedSubjectKeys.length === 0) return true;
+          return selectedSubjectKeys.includes(q.subject);
         });
+
+        // Re-number IDs after filtering
+        questions.forEach((q, i) => { q.id = i + 1; });
 
         setLoadingMessage("Saving to database...");
 
@@ -140,7 +150,9 @@ const TestPage = () => {
           selectedAnswer: null,
           timeSpent: 0,
         }));
-        questionStates[0].status = "not-answered";
+        if (questionStates.length > 0) {
+          questionStates[0].status = "not-answered";
+        }
 
         setSession({
           questions,
@@ -158,16 +170,24 @@ const TestPage = () => {
         const { sampleQuestions } = await import("@/data/questions");
         const totalTimeSeconds = (preTestConfig.totalTimerMinutes || 60) * 60;
 
-        const questionStates: QuestionState[] = sampleQuestions.map((q) => ({
+        // Filter sample questions to selected subjects too
+        const selectedSubjectKeys = preTestConfig.selections?.map(s => s.subject) || [];
+        const filtered = selectedSubjectKeys.length > 0
+          ? sampleQuestions.filter(q => selectedSubjectKeys.includes(q.subject))
+          : sampleQuestions;
+
+        const questionStates: QuestionState[] = filtered.map((q) => ({
           questionId: q.id,
           status: "not-visited" as const,
           selectedAnswer: null,
           timeSpent: 0,
         }));
-        questionStates[0].status = "not-answered";
+        if (questionStates.length > 0) {
+          questionStates[0].status = "not-answered";
+        }
 
         setSession({
-          questions: sampleQuestions,
+          questions: filtered,
           questionStates,
           currentQuestionIndex: 0,
           totalTime: totalTimeSeconds,
