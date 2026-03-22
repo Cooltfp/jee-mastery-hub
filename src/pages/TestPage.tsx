@@ -10,8 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Clock, ChevronLeft, ChevronRight, Flag, Send, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-const TOTAL_TIME = 60 * 60;
-
 const TestPage = () => {
   const navigate = useNavigate();
   const [preTestConfig, setPreTestConfig] = useState<PreTestConfig | null>(null);
@@ -27,7 +25,8 @@ const TestPage = () => {
   const handlePreTestStart = (config: PreTestConfig) => {
     setPreTestConfig(config);
     setLoading(true);
-    setLoadingMessage(`Generating Level ${config.level} questions${config.chapterName ? ` for ${config.chapterName}` : ""}...`);
+    const subjectNames = config.selections?.map((s) => s.subject).join(", ") || "all subjects";
+    setLoadingMessage(`Generating Level ${config.level} questions for ${subjectNames}...`);
   };
 
   // Generate questions via AI after pre-test config
@@ -36,8 +35,22 @@ const TestPage = () => {
 
     const generateQuestions = async () => {
       try {
+        // Build edge function request body
+        const requestBody: any = { level: preTestConfig.level };
+
+        if (preTestConfig.selections && preTestConfig.selections.length > 0) {
+          requestBody.selections = preTestConfig.selections.map((sel) => ({
+            subject: sel.subject,
+            chapters: sel.chapters,
+            level: sel.level || preTestConfig.level,
+          }));
+          requestBody.questions_per_subject = 10;
+        } else if (preTestConfig.chapterName) {
+          requestBody.chapter_name = preTestConfig.chapterName;
+        }
+
         const { data, error } = await supabase.functions.invoke("generate-questions", {
-          body: { level: preTestConfig.level, chapter_name: preTestConfig.chapterName },
+          body: requestBody,
         });
 
         if (error) throw error;
@@ -55,17 +68,20 @@ const TestPage = () => {
             subject,
             type: q.type,
             difficulty: q.difficulty,
-            text: q.text,
+            text: q.text || q.question_text,
             options: q.options || undefined,
-            correctAnswer: q.correctAnswer,
-            explanation: q.explanation,
-            topic: q.topic,
+            correctAnswer: q.correctAnswer || q.correct_answer,
+            explanation: q.explanation || q.solution,
+            topic: q.topic || q.chapter,
             marks: q.marks || 4,
             negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
           };
         });
 
         setLoadingMessage("Saving to database...");
+
+        // Calculate total time in seconds from per-subject timers
+        const totalTimeSeconds = (preTestConfig.totalTimerMinutes || 60) * 60;
 
         const deviceId = getDeviceId();
         const { data: sessionData, error: sessionError } = await supabase
@@ -130,7 +146,7 @@ const TestPage = () => {
           questions,
           questionStates,
           currentQuestionIndex: 0,
-          totalTime: TOTAL_TIME,
+          totalTime: totalTimeSeconds,
           startTime: Date.now(),
           isSubmitted: false,
         });
@@ -140,6 +156,8 @@ const TestPage = () => {
         toast.error("Failed to generate questions. Using sample questions instead.");
 
         const { sampleQuestions } = await import("@/data/questions");
+        const totalTimeSeconds = (preTestConfig.totalTimerMinutes || 60) * 60;
+
         const questionStates: QuestionState[] = sampleQuestions.map((q) => ({
           questionId: q.id,
           status: "not-visited" as const,
@@ -152,7 +170,7 @@ const TestPage = () => {
           questions: sampleQuestions,
           questionStates,
           currentQuestionIndex: 0,
-          totalTime: TOTAL_TIME,
+          totalTime: totalTimeSeconds,
           startTime: Date.now(),
           isSubmitted: false,
         });
@@ -292,12 +310,17 @@ const TestPage = () => {
       recommendedLevel = currentLevel - 1;
     }
 
+    // Store which subjects were tested for the results page
+    const testedSubjects = preTestConfig?.selections?.map((s) => s.subject) || ["physics", "chemistry", "math"];
+
     const enrichedResult = {
       ...result,
       confidence: preTestConfig?.confidence || null,
       level: currentLevel,
       chapterName: preTestConfig?.chapterName || null,
       recommendedLevel,
+      testedSubjects,
+      totalTimerMinutes: preTestConfig?.totalTimerMinutes || 60,
     };
 
     sessionStorage.setItem("testResult", JSON.stringify(enrichedResult));
@@ -361,9 +384,14 @@ const TestPage = () => {
   const getSubjectQuestions = (subject: string) =>
     session.questions.reduce<number[]>((acc, q, i) => (q.subject === subject ? [...acc, i] : acc), []);
 
+  // Dynamic: only build palette sections for subjects that have questions
+  const subjectSections: { key: string; label: string; colorClass: string; indices: number[] }[] = [];
   const physicsQs = getSubjectQuestions("physics");
   const chemistryQs = getSubjectQuestions("chemistry");
   const mathQs = getSubjectQuestions("math");
+  if (physicsQs.length > 0) subjectSections.push({ key: "physics", label: "Physics", colorClass: "subject-physics", indices: physicsQs });
+  if (chemistryQs.length > 0) subjectSections.push({ key: "chemistry", label: "Chemistry", colorClass: "subject-chemistry", indices: chemistryQs });
+  if (mathQs.length > 0) subjectSections.push({ key: "math", label: "Mathematics", colorClass: "subject-math", indices: mathQs });
 
   const stats = {
     answered: session.questionStates.filter((s) => s.status === "answered").length,
@@ -494,9 +522,18 @@ const TestPage = () => {
               <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[hsl(var(--physics))]" /> Marked: {stats.marked}</div>
               <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-secondary" /> Not Visited: {stats.notVisited}</div>
             </div>
-            <PaletteSection title="Physics" colorClass="subject-physics" indices={physicsQs} states={session.questionStates} currentIndex={session.currentQuestionIndex} onSelect={goToQuestion} />
-            <PaletteSection title="Chemistry" colorClass="subject-chemistry" indices={chemistryQs} states={session.questionStates} currentIndex={session.currentQuestionIndex} onSelect={goToQuestion} />
-            <PaletteSection title="Mathematics" colorClass="subject-math" indices={mathQs} states={session.questionStates} currentIndex={session.currentQuestionIndex} onSelect={goToQuestion} />
+            {/* Dynamic: only show palette sections for subjects that have questions */}
+            {subjectSections.map((sec) => (
+              <PaletteSection
+                key={sec.key}
+                title={sec.label}
+                colorClass={sec.colorClass}
+                indices={sec.indices}
+                states={session.questionStates}
+                currentIndex={session.currentQuestionIndex}
+                onSelect={goToQuestion}
+              />
+            ))}
           </div>
         </aside>
       </div>
