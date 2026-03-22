@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TestResult } from "@/lib/testStore";
 import { LEVELS } from "@/lib/levelSystem";
+import { getRecommendedLevel, saveRecommendations, LevelRecommendation } from "@/utils/levelRecommendation";
 import { Progress } from "@/components/ui/progress";
 import MathRenderer from "@/components/MathRenderer";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,8 @@ interface EnrichedResult extends TestResult {
   level?: number;
   chapterName?: string | null;
   recommendedLevel?: number;
+  testedSubjects?: string[];
+  totalTimerMinutes?: number;
 }
 
 const ResultsPage = () => {
@@ -24,14 +27,46 @@ const ResultsPage = () => {
   const [result, setResult] = useState<EnrichedResult | null>(null);
   const [expandedQ, setExpandedQ] = useState<number | null>(null);
   const [levelUnlocked, setLevelUnlocked] = useState<number | null>(null);
+  const [perSubjectRecs, setPerSubjectRecs] = useState<LevelRecommendation[]>([]);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("testResult");
-    if (stored) setResult(JSON.parse(stored));
+    if (!stored) return;
+
+    const parsed: EnrichedResult = JSON.parse(stored);
+    setResult(parsed);
+
     const unlocked = sessionStorage.getItem("levelUnlocked");
     if (unlocked) {
       setLevelUnlocked(Number(unlocked));
       sessionStorage.removeItem("levelUnlocked");
+    }
+
+    // Calculate per-subject recommendations
+    const currentLevel = parsed.level || 3;
+    const recs: LevelRecommendation[] = [];
+    const recMap: Record<string, number> = {};
+    const testedSubjects = parsed.testedSubjects || ["physics", "chemistry", "math"];
+
+    for (const key of ["physics", "chemistry", "math"] as const) {
+      if (!testedSubjects.includes(key)) continue;
+      const subj = parsed.subjectWise[key];
+      const attempted = subj.correct + subj.incorrect;
+      if (attempted === 0 && subj.unattempted === 0) continue; // Subject not in test
+
+      const rec = getRecommendedLevel({
+        subject: key,
+        accuracy: subj.accuracy,
+        avgTimePerQuestion: subj.avgTime,
+        currentLevel,
+      });
+      recs.push(rec);
+      recMap[key] = rec.recommendedLevel;
+    }
+
+    setPerSubjectRecs(recs);
+    if (Object.keys(recMap).length > 0) {
+      saveRecommendations(recMap);
     }
   }, []);
 
@@ -48,7 +83,7 @@ const ResultsPage = () => {
     );
   }
 
-  const { score, maxScore, subjectWise, sillyErrors, questions, questionStates, totalTimeTaken, confidence, level, recommendedLevel } = result;
+  const { score, maxScore, subjectWise, sillyErrors, questions, questionStates, totalTimeTaken, confidence, level, recommendedLevel, testedSubjects, totalTimerMinutes } = result;
   const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
   const totalCorrect = subjectWise.physics.correct + subjectWise.chemistry.correct + subjectWise.math.correct;
   const totalIncorrect = subjectWise.physics.incorrect + subjectWise.chemistry.incorrect + subjectWise.math.incorrect;
@@ -60,11 +95,14 @@ const ResultsPage = () => {
     return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
   };
 
+  const tested = testedSubjects || ["physics", "chemistry", "math"];
   const subjects = [
     { key: "physics" as const, label: "Physics", data: subjectWise.physics, color: "hsl(217, 91%, 60%)" },
     { key: "chemistry" as const, label: "Chemistry", data: subjectWise.chemistry, color: "hsl(142, 71%, 45%)" },
     { key: "math" as const, label: "Mathematics", data: subjectWise.math, color: "hsl(38, 92%, 50%)" },
-  ];
+  ].filter((s) => tested.includes(s.key));
+
+  const showRadarChart = subjects.length >= 2;
 
   const radarData = subjects.map((s) => ({
     subject: s.label,
@@ -101,7 +139,6 @@ const ResultsPage = () => {
   const confidenceLabel = confidenceGap > 0 ? "Overconfident" : confidenceGap < 0 ? "Underconfident" : "Well Calibrated";
   const confidenceColor = confidenceGap > 0 ? "text-destructive" : confidenceGap < 0 ? "text-[hsl(var(--physics))]" : "text-[hsl(var(--success))]";
 
-  // Level progress
   const currentLevel = level || 3;
   const unlockThreshold = 60;
   const progressToNext = Math.min(100, (percentage / unlockThreshold) * 100);
@@ -121,28 +158,46 @@ const ResultsPage = () => {
       </header>
 
       <div className="max-w-5xl mx-auto p-6 space-y-8">
-        {/* Level Unlock Banner */}
-        {/* Adaptive Level Recommendation */}
-        {recommendedLevel && recommendedLevel !== (level || 3) && (
-          <div className={`rounded-xl p-5 flex items-center gap-4 border ${
-            recommendedLevel > (level || 3)
-              ? "bg-[hsl(var(--success))]/10 border-[hsl(var(--success))]/30"
-              : "bg-accent/10 border-accent/30"
-          }`}>
-            <Trophy className="w-8 h-8 text-accent" />
-            <div>
-              {recommendedLevel > (level || 3) ? (
-                <>
-                  <div className="font-bold text-base">🎉 Level Up Recommended!</div>
-                  <p className="text-sm text-muted-foreground">You scored {percentage.toFixed(0)}% (above 80%) — Mastery! Move to <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> for your next test!</p>
-                </>
-              ) : (
-                <>
-                  <div className="font-bold text-base">💪 Build Your Foundations</div>
-                  <p className="text-sm text-muted-foreground">Foundation weak at Level {level} ({percentage.toFixed(0)}%, below 50%). Try <strong>Level {recommendedLevel} ({LEVELS[recommendedLevel - 1]?.name})</strong> or specific Chapter practice to strengthen your basics.</p>
-                </>
-              )}
+        {/* Per-subject Recommended Levels */}
+        {perSubjectRecs.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-accent" /> Recommended next levels
+            </h3>
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(perSubjectRecs.length, 3)}, 1fr)` }}>
+              {perSubjectRecs.map((rec) => (
+                <div
+                  key={rec.subject}
+                  className={`rounded-xl p-4 border ${
+                    rec.type === "up"
+                      ? "bg-[hsl(var(--success))]/10 border-[hsl(var(--success))]/30"
+                      : rec.type === "down"
+                      ? "bg-[hsl(var(--physics))]/10 border-[hsl(var(--physics))]/30"
+                      : "bg-accent/10 border-accent/30"
+                  }`}
+                >
+                  <div className="text-sm font-bold mb-1">
+                    {rec.emoji} {rec.subject.charAt(0).toUpperCase() + rec.subject.slice(1)}
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-2">{rec.reason}</div>
+                  <div className="text-xs font-semibold">
+                    Level {rec.currentLevel} → Level {rec.recommendedLevel}{" "}
+                    {rec.recommendedLevel !== rec.currentLevel && (
+                      <span className="text-accent">
+                        ({LEVELS[rec.recommendedLevel - 1]?.name})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
+            <Button
+              onClick={() => navigate("/test")}
+              className="w-full bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-transform mt-2"
+              size="sm"
+            >
+              Start Recommended Test
+            </Button>
           </div>
         )}
 
@@ -150,7 +205,7 @@ const ResultsPage = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <ScoreCard icon={<Target className="w-5 h-5 text-accent" />} label="Score" value={`${score}/${maxScore}`} sub={`${percentage.toFixed(1)}%`} />
           <ScoreCard icon={<CheckCircle2 className="w-5 h-5 text-[hsl(var(--success))]" />} label="Correct" value={`${totalCorrect}`} sub={`of ${totalAttempted} attempted`} />
-          <ScoreCard icon={<Clock className="w-5 h-5 text-[hsl(var(--physics))]" />} label="Time Taken" value={formatTime(totalTimeTaken)} sub="of 60m" />
+          <ScoreCard icon={<Clock className="w-5 h-5 text-[hsl(var(--physics))]" />} label="Time Taken" value={formatTime(totalTimeTaken)} sub={`of ${totalTimerMinutes || 60}m`} />
           <ScoreCard icon={<AlertTriangle className="w-5 h-5 text-destructive" />} label="Silly Errors" value={`${sillyErrors.length}`} sub={sillyErrors.length > 0 ? "Review below" : "Great focus!"} />
         </div>
 
@@ -201,20 +256,22 @@ const ResultsPage = () => {
         </div>
 
         {/* Charts Row */}
-        <section className="grid md:grid-cols-3 gap-6">
-          <div className="bg-card rounded-xl border p-5">
-            <h3 className="text-sm font-semibold mb-4">Subject Balance</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="hsl(214, 20%, 90%)" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
-                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10 }} />
-                <Radar name="Accuracy" dataKey="accuracy" stroke="hsl(217, 91%, 60%)" fill="hsl(217, 91%, 60%)" fillOpacity={0.3} />
-                <Radar name="Score %" dataKey="score" stroke="hsl(38, 92%, 50%)" fill="hsl(38, 92%, 50%)" fillOpacity={0.2} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
+        <section className={`grid gap-6 ${showRadarChart ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          {showRadarChart && (
+            <div className="bg-card rounded-xl border p-5">
+              <h3 className="text-sm font-semibold mb-4">Subject Balance</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <RadarChart data={radarData}>
+                  <PolarGrid stroke="hsl(214, 20%, 90%)" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10 }} />
+                  <Radar name="Accuracy" dataKey="accuracy" stroke="hsl(217, 91%, 60%)" fill="hsl(217, 91%, 60%)" fillOpacity={0.3} />
+                  <Radar name="Score %" dataKey="score" stroke="hsl(38, 92%, 50%)" fill="hsl(38, 92%, 50%)" fillOpacity={0.2} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           <div className="bg-card rounded-xl border p-5">
             <h3 className="text-sm font-semibold mb-4">Accuracy Rate</h3>
@@ -274,7 +331,7 @@ const ResultsPage = () => {
           <h2 className="font-semibold text-base mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4" /> Topic-wise Performance
           </h2>
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className={`grid gap-4 ${subjects.length >= 3 ? "md:grid-cols-3" : subjects.length === 2 ? "md:grid-cols-2" : "md:grid-cols-1"}`}>
             {subjects.map((subj) => (
               <div key={subj.key} className="bg-card rounded-xl border p-5 space-y-2">
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-md inline-block ${
