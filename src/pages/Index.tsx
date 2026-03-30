@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Brain, BarChart3, MessageCircle, ChevronRight, Atom, FlaskConical, Calculator } from "lucide-react";
+import { BookOpen, Brain, BarChart3, MessageCircle, ChevronRight, Atom, FlaskConical, Calculator, Clock } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 const Index = () => {
@@ -18,6 +18,10 @@ const Index = () => {
             <span className="font-bold text-lg tracking-tight">JEE Prep</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/history")} className="active:scale-[0.97] transition-transform">
+              <Clock className="w-4 h-4 mr-2" />
+              History
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/practice")} className="active:scale-[0.97] transition-transform">
               <BookOpen className="w-4 h-4 mr-2" />
               Practice
