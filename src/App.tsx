@@ -8,6 +8,7 @@ import TestPage from "./pages/TestPage.tsx";
 import ResultsPage from "./pages/ResultsPage.tsx";
 import DoubtSolverPage from "./pages/DoubtSolverPage.tsx";
 import PracticePage from "./pages/PracticePage.tsx";
+import HistoryPage from "./pages/HistoryPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
