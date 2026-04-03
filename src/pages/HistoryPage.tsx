@@ -101,7 +101,7 @@ const HistoryPage = () => {
                 className="border rounded-xl bg-card p-4 hover:shadow-sm transition-shadow cursor-pointer"
                 onClick={() => {
                   sessionStorage.setItem("lastSessionId", s.id);
-                  navigate("/results");
+                  navigate(`/analysis/${s.id}`);
                 }}
               >
                 <div className="flex items-start justify-between gap-3">
