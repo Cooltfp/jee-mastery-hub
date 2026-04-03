@@ -38,6 +38,9 @@ const CMDS = [
 ].sort((a, b) => b.length - a.length);
 
 function restoreBackslashes(text: string): string {
+  if (text === null || text === undefined) return '';
+  if (typeof text !== 'string') return String(text);
+  
   let r = text;
   for (const cmd of CMDS) {
     const re = new RegExp(`(?<!\\\\)\\b(${cmd})(?=[{\\s^_\\(\\[]|$)`, "g");
