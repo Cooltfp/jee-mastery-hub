@@ -394,11 +394,11 @@ You already know everything about this question. Answer the student's doubts cle
                           <Clock className="w-3 h-3" />
                           {formatTime(resp.time_spent)}
                         </span>
-                      ) : (
+                      ) : !resp?.selected_answer ? (
                         <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md whitespace-nowrap">
                           Not attempted
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </div>
