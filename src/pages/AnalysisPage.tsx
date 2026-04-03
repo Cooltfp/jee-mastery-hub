@@ -55,6 +55,14 @@ interface SessionData {
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/doubt-solver`;
+const getOptionText = (opt: any): string => {
+  if (typeof opt === "string") return opt;
+  if (opt === null || opt === undefined) return "";
+  if (typeof opt === "object") {
+    return opt.text ?? opt.value ?? opt.label ?? opt.content ?? JSON.stringify(opt);
+  }
+  return String(opt);
+};
 
 const AnalysisPage = () => {
   const { testId } = useParams<{ testId: string }>();
@@ -141,7 +149,7 @@ const AnalysisPage = () => {
 
   const buildContextMessage = (q: QuestionData, resp: ResponseData | undefined) => {
     const optionsText = q.options
-      ? q.options.map((o, i) => `${optionLabels[i]}. ${o}`).join("\n")
+      ? q.options.map((o, i) => `${optionLabels[i]}. ${getOptionText(o)}`).join("\n")
       : "No options (numerical type)";
     const userAnswer = resp?.selected_answer || "Not attempted";
     return `You are a JEE tutor. The student is reviewing their test. Here is the full context:
@@ -414,7 +422,7 @@ You already know everything about this question. Answer the student's doubts cle
                             {label}.
                           </span>
                           <div className="flex-1 min-w-0">
-                            <MathRenderer>{opt}</MathRenderer>
+                            <MathRenderer>{getOptionText(opt)}</MathRenderer>
                           </div>
                           {isCorrectOption && (
                             <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />
