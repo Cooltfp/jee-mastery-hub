@@ -139,7 +139,27 @@ const AnalysisPage = () => {
   const incorrect = attempted - correct;
   const unattempted = questions.length - attempted;
 
-  const handleAskDoubt = async (questionId: string, questionText: string) => {
+  const buildContextMessage = (q: QuestionData, resp: ResponseData | undefined) => {
+    const optionsText = q.options
+      ? q.options.map((o, i) => `${optionLabels[i]}. ${o}`).join("\n")
+      : "No options (numerical type)";
+    const userAnswer = resp?.selected_answer || "Not attempted";
+    return `You are a JEE tutor. The student is reviewing their test. Here is the full context:
+
+**Question:** ${q.text}
+
+**Options:**
+${optionsText}
+
+**Correct Answer:** ${q.correct_answer}
+**Student's Answer:** ${userAnswer}
+
+**Solution/Explanation:** ${q.explanation}
+
+You already know everything about this question. Answer the student's doubts clearly and concisely. Use LaTeX for math. Do not ask the student to provide the question again.`;
+  };
+
+  const handleAskDoubt = async (questionId: string, q: QuestionData) => {
     if (!doubtInput.trim() || doubtLoading) return;
     const userMsg = doubtInput.trim();
     setDoubtInput("");
@@ -149,13 +169,17 @@ const AnalysisPage = () => {
     const newMsgs = [...prev, { role: "user" as const, content: userMsg }];
     setDoubtMessages((m) => new Map(m).set(questionId, newMsgs));
 
+    const resp = responses.get(questionId);
+
     try {
+      const contextMsg = buildContextMessage(q, resp);
+      const chatHistory = prev.map((m) => ({ role: m.role, content: m.content }));
+
       const body: any = {
         messages: [
-          {
-            role: "user",
-            content: `Context: This is about the following JEE question:\n"${questionText}"\n\nStudent's doubt: ${userMsg}`,
-          },
+          { role: "system", content: contextMsg },
+          ...chatHistory,
+          { role: "user", content: userMsg },
         ],
         sessionId: testId,
         questionId,
