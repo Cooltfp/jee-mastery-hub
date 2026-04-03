@@ -9,6 +9,7 @@ import ResultsPage from "./pages/ResultsPage.tsx";
 import DoubtSolverPage from "./pages/DoubtSolverPage.tsx";
 import PracticePage from "./pages/PracticePage.tsx";
 import HistoryPage from "./pages/HistoryPage.tsx";
+import AnalysisPage from "./pages/AnalysisPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/doubt-solver" element={<DoubtSolverPage />} />
           <Route path="/practice" element={<PracticePage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/analysis/:testId" element={<AnalysisPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
