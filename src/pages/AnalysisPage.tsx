@@ -66,10 +66,11 @@ const optionLabels = ["A", "B", "C", "D"];
 
 const stripMarkdown = (text: string): string => {
   return text
-    .replace(/^#{1,6}\s+/gm, "")      // remove ### headings
-    .replace(/\*\*([^*]+)\*\*/g, "$1") // remove **bold**
-    .replace(/\*([^*]+)\*/g, "$1")     // remove *italic*
-    .replace(/^[-*]\s+/gm, "• ")       // convert bullet points to •
+    .replace(/^#{1,6}\s*/gm, "")          // remove # ## ### headings
+    .replace(/\*\*([^*]+)\*\*/g, "$1")    // remove **bold**
+    .replace(/\*([^*]+)\*/g, "$1")        // remove *italic*
+    .replace(/^[-*]\s+/gm, "• ")          // bullet points to •
+    .replace(/^\d+\.\s+/gm, (m) => m)     // keep numbered lists as-is
     .trim();
 };
 
@@ -175,7 +176,16 @@ ${optionsText}
 
 **Solution/Explanation:** ${q.explanation}
 
-You already know everything about this question. Answer the student's doubts clearly and concisely. Use LaTeX for math expressions (wrap in $ for inline, $$ for block). Do not use markdown formatting — no hashtags, no asterisks for bold, no bullet points, no headers. Write in plain sentences and use LaTeX only for mathematical notation. Do not ask the student to provide the question again.`;
+You already know everything about this question. Answer the student's doubts clearly and concisely.
+
+STRICT FORMATTING RULES — follow exactly:
+- Never use markdown: no # headings, no **bold**, no *italic*, no bullet points with *, no numbered lists with markdown
+- Every math expression, chemical equation, formula, or LaTeX command MUST be wrapped in $ for inline or $$ for block — never write raw LaTeX like \\text{} or \\rightleftharpoons outside of $ delimiters
+- Write in plain numbered sentences (1. 2. 3.) for steps
+- Example correct format: "The equilibrium is $\\text{Ag}_2\\text{CrO}_4 \\rightleftharpoons 2\\text{Ag}^+ + \\text{CrO}_4^{2-}$"
+- Example wrong format: "\\text{Ag}_2 \\rightleftharpoons" (missing $ signs)
+
+Do not ask the student to provide the question again.`;
   };
 
   const fetchImprovement = async (q: QuestionData) => {
