@@ -497,7 +497,7 @@ You already know everything about this question. Answer the student's doubts cle
                                 />
                                 <Button
                                   size="sm"
-                                  onClick={() => handleAskDoubt(q.id, q.text)}
+                                  onClick={() => handleAskDoubt(q.id, q)}
                                   disabled={!doubtInput.trim() || doubtLoading}
                                   className="bg-accent text-accent-foreground hover:bg-accent/90"
                                 >
