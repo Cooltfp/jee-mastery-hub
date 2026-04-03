@@ -64,39 +64,6 @@ const getOptionText = (opt: any): string => {
 
 const optionLabels = ["A", "B", "C", "D"];
 
-// Renders markdown: ### headings, **bold**, newlines
-const SimpleMarkdown = ({ text }: { text: string }) => {
-  const lines = text.split("\n");
-  return (
-    <div className="space-y-1.5">
-      {lines.map((line, i) => {
-        // Heading levels
-        const h3 = line.match(/^###\s+(.*)/);
-        const h2 = line.match(/^##\s+(.*)/);
-        const h1 = line.match(/^#\s+(.*)/);
-        if (h3) return <p key={i} className="font-bold text-sm mt-2">{renderInline(h3[1])}</p>;
-        if (h2) return <p key={i} className="font-bold text-sm mt-2">{renderInline(h2[1])}</p>;
-        if (h1) return <p key={i} className="font-bold text-base mt-2">{renderInline(h1[1])}</p>;
-        if (line.trim() === "") return <div key={i} className="h-1" />;
-        return <p key={i} className="text-sm leading-relaxed">{renderInline(line)}</p>;
-      })}
-    </div>
-  );
-};
-
-const renderInline = (text: string): React.ReactNode[] => {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith("*") && part.endsWith("*")) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    }
-    return <span key={i}>{part}</span>;
-  });
-};
-
 const AnalysisPage = () => {
   const { testId } = useParams<{ testId: string }>();
   const navigate = useNavigate();
@@ -584,7 +551,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                         <Loader2 className="w-3 h-3 animate-spin" /> Generating feedback...
                       </div>
                     ) : improvement ? (
-                      <div className="text-foreground/80"><SimpleMarkdown text={improvement} /></div>
+                      <p className="text-sm text-foreground/80 leading-relaxed">{improvement}</p>
                     ) : null}
                   </div>
 
@@ -718,7 +685,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                                 }`}
                               >
                                 {m.role === "assistant" ? (
-                                  <SimpleMarkdown text={m.content} />
+                                  <MathRenderer>{m.content}</MathRenderer>
                                 ) : (
                                   m.content
                                 )}
