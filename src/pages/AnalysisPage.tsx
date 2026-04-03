@@ -169,10 +169,10 @@ You already know everything about this question. Answer the student's doubts cle
     const newMsgs = [...prev, { role: "user" as const, content: userMsg }];
     setDoubtMessages((m) => new Map(m).set(questionId, newMsgs));
 
-    const resp = responses.get(questionId);
+    const userResp = responses.get(questionId);
 
     try {
-      const contextMsg = buildContextMessage(q, resp);
+      const contextMsg = buildContextMessage(q, userResp);
       const chatHistory = prev.map((m) => ({ role: m.role, content: m.content }));
 
       const body: any = {
