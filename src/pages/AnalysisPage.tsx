@@ -1,14 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import MathRenderer from "@/components/MathRenderer";
 import { Button } from "@/components/ui/button";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -19,6 +13,9 @@ import {
   Bot,
   Loader2,
   Send,
+  ChevronLeft,
+  ChevronRight,
+  Lightbulb,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,7 +27,7 @@ interface QuestionData {
   type: string;
   difficulty: string;
   text: string;
-  options: string[] | null;
+  options: any[] | null;
   correct_answer: string;
   explanation: string;
   marks: number;
@@ -65,6 +62,8 @@ const getOptionText = (opt: any): string => {
   return String(opt);
 };
 
+const optionLabels = ["A", "B", "C", "D"];
+
 const AnalysisPage = () => {
   const { testId } = useParams<{ testId: string }>();
   const navigate = useNavigate();
@@ -72,6 +71,14 @@ const AnalysisPage = () => {
   const [questions, setQuestions] = useState<QuestionData[]>([]);
   const [responses, setResponses] = useState<Map<string, ResponseData>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Solution expanded state per question
+  const [solutionOpen, setSolutionOpen] = useState<Set<string>>(new Set());
+
+  // Constructive improvement per question
+  const [improvements, setImprovements] = useState<Map<string, string>>(new Map());
+  const [improvementLoading, setImprovementLoading] = useState<Set<string>>(new Set());
 
   // AI Doubt state per question
   const [doubtOpen, setDoubtOpen] = useState<string | null>(null);
@@ -80,6 +87,12 @@ const AnalysisPage = () => {
     Map<string, { role: "user" | "assistant"; content: string }[]>
   >(new Map());
   const [doubtLoading, setDoubtLoading] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [doubtMessages]);
 
   useEffect(() => {
     if (!testId) return;
@@ -119,32 +132,19 @@ const AnalysisPage = () => {
   }, [testId]);
 
   const formatTime = (s: number) => {
+    if (!s || s <= 0) return null;
     if (s < 60) return `${Math.round(s)}s`;
     return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
   };
 
-  const optionLabels = ["A", "B", "C", "D"];
-
-  const getStatusInfo = (q: QuestionData, resp: ResponseData | undefined) => {
-    if (!resp || resp.status === "not-visited" || !resp.selected_answer) {
-      return { type: "unattempted" as const, icon: <MinusCircle className="w-5 h-5 text-muted-foreground" /> };
-    }
+  const getStatus = (q: QuestionData, resp: ResponseData | undefined) => {
+    if (!resp || resp.status === "not-visited" || !resp.selected_answer) return "unattempted";
     const isCorrect = resp.selected_answer.trim().toUpperCase() === q.correct_answer.trim().toUpperCase();
-    if (isCorrect) {
-      return { type: "correct" as const, icon: <CheckCircle2 className="w-5 h-5 text-[hsl(var(--success))]" /> };
-    }
-    return { type: "wrong" as const, icon: <XCircle className="w-5 h-5 text-destructive" /> };
+    return isCorrect ? "correct" : "wrong";
   };
 
-  // Compute summary stats
-  const correct = questions.filter((q) => {
-    const r = responses.get(q.id);
-    return r?.selected_answer && r.selected_answer.trim().toUpperCase() === q.correct_answer.trim().toUpperCase();
-  }).length;
-  const attempted = questions.filter((q) => {
-    const r = responses.get(q.id);
-    return r?.selected_answer;
-  }).length;
+  const correct = questions.filter((q) => getStatus(q, responses.get(q.id)) === "correct").length;
+  const attempted = questions.filter((q) => responses.get(q.id)?.selected_answer).length;
   const incorrect = attempted - correct;
   const unattempted = questions.length - attempted;
 
@@ -168,6 +168,92 @@ ${optionsText}
 You already know everything about this question. Answer the student's doubts clearly and concisely. Use LaTeX for math. Do not ask the student to provide the question again.`;
   };
 
+  const fetchImprovement = async (q: QuestionData) => {
+    if (improvements.has(q.id) || improvementLoading.has(q.id)) return;
+    setImprovementLoading((s) => new Set(s).add(q.id));
+
+    const resp = responses.get(q.id);
+    const status = getStatus(q, resp);
+    const optionsText = q.options
+      ? q.options.map((o, i) => `${optionLabels[i]}. ${getOptionText(o)}`).join("\n")
+      : "No options";
+
+    const prompt = `You are a JEE coach giving a student quick, actionable feedback after reviewing a test question.
+
+Question: ${q.text}
+Options: ${optionsText}
+Correct Answer: ${q.correct_answer}
+Student's Answer: ${resp?.selected_answer || "Not attempted"}
+Result: ${status === "correct" ? "Correct" : status === "wrong" ? "Wrong" : "Not attempted"}
+Solution: ${q.explanation}
+
+Give 2-3 sentences of constructive feedback. If correct: reinforce the concept and mention a common mistake to avoid. If wrong or unattempted: identify the likely gap in understanding and suggest what to review. Be specific, not generic. Do not repeat the question. Use plain text only (no LaTeX, no markdown headers).`;
+
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: prompt }],
+          sessionId: testId,
+          questionId: q.id,
+        }),
+      });
+
+      if (!res.ok || !res.body) throw new Error("Failed");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let content = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let ni: number;
+        while ((ni = buffer.indexOf("\n")) !== -1) {
+          let line = buffer.slice(0, ni);
+          buffer = buffer.slice(ni + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              content += delta;
+              setImprovements((m) => new Map(m).set(q.id, content));
+            }
+          } catch { buffer = line + "\n" + buffer; break; }
+        }
+      }
+
+      if (!content) setImprovements((m) => new Map(m).set(q.id, "Could not generate feedback."));
+    } catch {
+      setImprovements((m) => new Map(m).set(q.id, "Could not generate feedback."));
+    } finally {
+      setImprovementLoading((s) => { const n = new Set(s); n.delete(q.id); return n; });
+    }
+  };
+
+  const toggleSolution = (q: QuestionData) => {
+    setSolutionOpen((s) => {
+      const next = new Set(s);
+      if (next.has(q.id)) {
+        next.delete(q.id);
+      } else {
+        next.add(q.id);
+        fetchImprovement(q);
+      }
+      return next;
+    });
+  };
+
   const handleAskDoubt = async (questionId: string, q: QuestionData) => {
     if (!doubtInput.trim() || doubtLoading) return;
     const userMsg = doubtInput.trim();
@@ -184,29 +270,26 @@ You already know everything about this question. Answer the student's doubts cle
       const contextMsg = buildContextMessage(q, userResp);
       const chatHistory = prev.map((m) => ({ role: m.role, content: m.content }));
 
-      const body: any = {
-        messages: [
-          { role: "system", content: contextMsg },
-          ...chatHistory,
-          { role: "user", content: userMsg },
-        ],
-        sessionId: testId,
-        questionId,
-      };
-
-      const resp = await fetch(CHAT_URL, {
+      const res = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: contextMsg },
+            ...chatHistory,
+            { role: "user", content: userMsg },
+          ],
+          sessionId: testId,
+          questionId,
+        }),
       });
 
-      if (!resp.ok) throw new Error(`Error: ${resp.status}`);
-      if (!resp.body) throw new Error("No body");
+      if (!res.ok || !res.body) throw new Error(`Error: ${res.status}`);
 
-      const reader = resp.body.getReader();
+      const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let assistantContent = "";
       let textBuffer = "";
@@ -215,7 +298,6 @@ You already know everything about this question. Answer the student's doubts cle
         const { done, value } = await reader.read();
         if (done) break;
         textBuffer += decoder.decode(value, { stream: true });
-
         let newlineIndex: number;
         while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
           let line = textBuffer.slice(0, newlineIndex);
@@ -234,15 +316,9 @@ You already know everything about this question. Answer the student's doubts cle
                 const cur = m.get(questionId) || [];
                 const last = cur[cur.length - 1];
                 if (last?.role === "assistant") {
-                  return new Map(m).set(questionId, [
-                    ...cur.slice(0, -1),
-                    { role: "assistant", content: assistantContent },
-                  ]);
+                  return new Map(m).set(questionId, [...cur.slice(0, -1), { role: "assistant", content: assistantContent }]);
                 }
-                return new Map(m).set(questionId, [
-                  ...cur,
-                  { role: "assistant", content: assistantContent },
-                ]);
+                return new Map(m).set(questionId, [...cur, { role: "assistant", content: assistantContent }]);
               });
             }
           } catch {
@@ -255,24 +331,25 @@ You already know everything about this question. Answer the student's doubts cle
       if (!assistantContent) {
         setDoubtMessages((m) => {
           const cur = m.get(questionId) || [];
-          return new Map(m).set(questionId, [
-            ...cur,
-            { role: "assistant", content: "Sorry, I couldn't generate a response. Please try again." },
-          ]);
+          return new Map(m).set(questionId, [...cur, { role: "assistant", content: "Sorry, I couldn't generate a response. Please try again." }]);
         });
       }
     } catch (err) {
       console.error("Doubt error:", err);
       setDoubtMessages((m) => {
         const cur = m.get(questionId) || [];
-        return new Map(m).set(questionId, [
-          ...cur,
-          { role: "assistant", content: "Error connecting to AI. Please try again." },
-        ]);
+        return new Map(m).set(questionId, [...cur, { role: "assistant", content: "Error connecting to AI. Please try again." }]);
       });
     }
-
     setDoubtLoading(false);
+  };
+
+  const goTo = (idx: number) => {
+    if (idx < 0 || idx >= questions.length) return;
+    setCurrentIndex(idx);
+    setDoubtOpen(null);
+    setDoubtInput("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   if (loading) {
@@ -283,8 +360,18 @@ You already know everything about this question. Answer the student's doubts cle
     );
   }
 
+  const q = questions[currentIndex];
+  if (!q) return null;
+  const resp = responses.get(q.id);
+  const status = getStatus(q, resp);
+  const msgs = doubtMessages.get(q.id) || [];
+  const isSolutionOpen = solutionOpen.has(q.id);
+  const improvement = improvements.get(q.id);
+  const isImprovementLoading = improvementLoading.has(q.id);
+  const timeStr = formatTime(resp?.time_spent ?? 0);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="border-b bg-card px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
         <Button
@@ -306,362 +393,410 @@ You already know everything about this question. Answer the student's doubts cle
             {sessionData.chapter_name}
           </span>
         )}
+        {/* Summary chips */}
+        <div className="ml-auto flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1 text-[hsl(var(--success))] font-semibold">
+            <CheckCircle2 className="w-3.5 h-3.5" /> {correct}
+          </span>
+          <span className="flex items-center gap-1 text-destructive font-semibold">
+            <XCircle className="w-3.5 h-3.5" /> {incorrect}
+          </span>
+          <span className="flex items-center gap-1 text-muted-foreground font-semibold">
+            <MinusCircle className="w-3.5 h-3.5" /> {unattempted}
+          </span>
+          <span className="flex items-center gap-1 text-accent font-semibold ml-1">
+            <Target className="w-3.5 h-3.5" /> {sessionData?.score ?? 0}/{sessionData?.max_score ?? 0}
+          </span>
+        </div>
       </header>
 
-      <div className="max-w-4xl mx-auto p-4 space-y-6">
-        {/* Summary Bar */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <SummaryCard
-            label="Score"
-            value={`${sessionData?.score ?? 0}/${sessionData?.max_score ?? 0}`}
-            icon={<Target className="w-4 h-4 text-accent" />}
-          />
-          <SummaryCard
-            label="Correct"
-            value={`${correct}`}
-            icon={<CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))]" />}
-          />
-          <SummaryCard
-            label="Incorrect"
-            value={`${incorrect}`}
-            icon={<XCircle className="w-4 h-4 text-destructive" />}
-          />
-          <SummaryCard
-            label="Unattempted"
-            value={`${unattempted}`}
-            icon={<MinusCircle className="w-4 h-4 text-muted-foreground" />}
-          />
-          <SummaryCard
-            label="Time"
-            value={formatTime(sessionData?.total_time_taken || 0)}
-            icon={<Clock className="w-4 h-4 text-[hsl(var(--physics))]" />}
-          />
-        </div>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main question area */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="max-w-3xl mx-auto space-y-5">
 
-        {/* Question Cards */}
-        <div className="space-y-4">
-          {questions.map((q, idx) => {
-            const resp = responses.get(q.id);
-            const status = getStatusInfo(q, resp);
-            const msgs = doubtMessages.get(q.id) || [];
+            {/* Question meta bar */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-md ${
+                q.subject === "physics" ? "subject-physics" :
+                q.subject === "chemistry" ? "subject-chemistry" : "subject-math"
+              }`}>
+                {q.subject === "math" ? "Mathematics" : q.subject.charAt(0).toUpperCase() + q.subject.slice(1)}
+              </span>
+              <span className="text-xs text-muted-foreground">{q.topic}</span>
+              <span className="text-xs text-muted-foreground px-2 py-0.5 rounded bg-muted capitalize">{q.difficulty}</span>
+              {timeStr ? (
+                <span className="ml-auto text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2 py-1 rounded-md">
+                  <Clock className="w-3 h-3" /> {timeStr}
+                </span>
+              ) : !resp?.selected_answer ? (
+                <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">Not attempted</span>
+              ) : null}
+            </div>
 
-            return (
-              <div
-                key={q.id}
-                className="border rounded-xl bg-card overflow-hidden"
-              >
-                {/* Question header */}
-                <div className="p-4 pb-3">
-                  <div className="flex items-start gap-3">
-                    {/* Status icon + Q number */}
-                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
-                      {status.icon}
-                      <span className="text-sm font-bold text-muted-foreground">
-                        Q{idx + 1}
+            {/* Status banner */}
+            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border ${
+              status === "correct"
+                ? "bg-[hsl(var(--success))]/10 text-[hsl(var(--success))] border-[hsl(var(--success))]/30"
+                : status === "wrong"
+                ? "bg-destructive/10 text-destructive border-destructive/30"
+                : "bg-muted text-muted-foreground border-border"
+            }`}>
+              {status === "correct" && <CheckCircle2 className="w-4 h-4" />}
+              {status === "wrong" && <XCircle className="w-4 h-4" />}
+              {status === "unattempted" && <MinusCircle className="w-4 h-4" />}
+              {status === "correct"
+                ? "Correct"
+                : status === "wrong"
+                ? `Wrong — You chose ${resp?.selected_answer?.toUpperCase()}, Correct is ${q.correct_answer.toUpperCase()}`
+                : "Not Attempted"}
+            </div>
+
+            {/* Question number + text */}
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">
+                Question {currentIndex + 1} of {questions.length}
+                {q.type === "numerical" && (
+                  <span className="ml-2 px-2 py-0.5 bg-secondary rounded text-xs">Numerical</span>
+                )}
+              </div>
+              <div className="text-base leading-relaxed">
+                <MathRenderer>{q.text}</MathRenderer>
+              </div>
+            </div>
+
+            {/* MCQ Options */}
+            {q.options && (
+              <div className="space-y-2.5">
+                {q.options.map((opt, oi) => {
+                  const label = optionLabels[oi];
+                  const isCorrectOption = q.correct_answer.trim().toUpperCase() === label;
+                  const isUserPick = resp?.selected_answer?.trim().toUpperCase() === label;
+                  const isWrongPick = isUserPick && !isCorrectOption;
+
+                  return (
+                    <div
+                      key={oi}
+                      className={`flex items-start gap-3 rounded-lg border-2 px-4 py-3 text-sm transition-colors ${
+                        isCorrectOption
+                          ? "border-[hsl(var(--success))] bg-[hsl(var(--success))]/10"
+                          : isWrongPick
+                          ? "border-destructive bg-destructive/10"
+                          : "border-border"
+                      }`}
+                    >
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                        isCorrectOption
+                          ? "bg-[hsl(var(--success))] text-white"
+                          : isWrongPick
+                          ? "bg-destructive text-white"
+                          : "bg-secondary text-muted-foreground"
+                      }`}>
+                        {label}
                       </span>
-                    </div>
-
-                    {/* Question content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded font-medium ${
-                            q.subject === "physics"
-                              ? "subject-physics"
-                              : q.subject === "chemistry"
-                              ? "subject-chemistry"
-                              : "subject-math"
-                          }`}
-                        >
-                          {q.subject === "math"
-                            ? "Mathematics"
-                            : q.subject.charAt(0).toUpperCase() +
-                              q.subject.slice(1)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {q.topic}
-                        </span>
+                      <div className="flex-1 min-w-0 pt-0.5">
+                        <MathRenderer>{getOptionText(opt)}</MathRenderer>
                       </div>
-                      <div className="text-sm leading-relaxed">
-                        <MathRenderer>{q.text}</MathRenderer>
-                      </div>
+                      {isCorrectOption && <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-1" />}
+                      {isWrongPick && <XCircle className="w-4 h-4 text-destructive shrink-0 mt-1" />}
                     </div>
+                  );
+                })}
+              </div>
+            )}
 
-                    {/* Time badge — top-right corner */}
-                    <div className="shrink-0 ml-auto">
-                      {resp && resp.time_spent > 0 ? (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2 py-1 rounded-md whitespace-nowrap">
-                          <Clock className="w-3 h-3" />
-                          {formatTime(resp.time_spent)}
-                        </span>
-                      ) : !resp?.selected_answer ? (
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md whitespace-nowrap">
-                          Not attempted
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
+            {/* Numerical answer display */}
+            {q.type === "numerical" && (
+              <div className="flex items-center gap-4 text-sm flex-wrap">
+                <div className="px-4 py-2 rounded-lg bg-[hsl(var(--success))]/10 border border-[hsl(var(--success))]/30 text-[hsl(var(--success))] font-mono font-semibold">
+                  Correct: {q.correct_answer}
                 </div>
-
-                {/* Options */}
-                {q.options && (
-                  <div className="px-4 pb-3 space-y-2">
-                    {q.options.map((opt, oi) => {
-                      const label = optionLabels[oi];
-                      const isCorrectOption =
-                        q.correct_answer.trim().toUpperCase() === label;
-                      const isUserPick =
-                        resp?.selected_answer?.trim().toUpperCase() === label;
-                      const isWrongPick = isUserPick && !isCorrectOption;
-
-                      let borderClass = "border-border";
-                      let bgClass = "";
-                      if (isCorrectOption) {
-                        borderClass = "border-[hsl(var(--success))]";
-                        bgClass = "bg-[hsl(var(--success))]/10";
-                      }
-                      if (isWrongPick) {
-                        borderClass = "border-destructive";
-                        bgClass = "bg-destructive/10";
-                      }
-
-                      return (
-                        <div
-                          key={oi}
-                          className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm ${borderClass} ${bgClass}`}
-                        >
-                          <span className="font-semibold text-muted-foreground shrink-0 mt-0.5 w-5">
-                            {label}.
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <MathRenderer>{getOptionText(opt)}</MathRenderer>
-                          </div>
-                          {isCorrectOption && (
-                            <CheckCircle2 className="w-4 h-4 text-[hsl(var(--success))] shrink-0 mt-0.5" />
-                          )}
-                          {isWrongPick && (
-                            <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-                          )}
-                        </div>
-                      );
-                    })}
+                {resp?.selected_answer && (
+                  <div className={`px-4 py-2 rounded-lg font-mono font-semibold border ${
+                    status === "correct"
+                      ? "bg-[hsl(var(--success))]/10 border-[hsl(var(--success))]/30 text-[hsl(var(--success))]"
+                      : "bg-destructive/10 border-destructive/30 text-destructive"
+                  }`}>
+                    Your answer: {resp.selected_answer}
                   </div>
                 )}
+              </div>
+            )}
 
-                {/* Solution Accordion + AI Doubts */}
-                <div className="border-t">
-                  <Accordion type="single" collapsible>
-                    <AccordionItem value="solution" className="border-b-0">
-                      <AccordionTrigger className="px-4 py-3 text-sm font-medium hover:no-underline">
-                        View Solution
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-3">
-                        <div className="bg-muted/50 rounded-lg p-4 text-sm leading-relaxed">
-                          <MathRenderer>{q.explanation}</MathRenderer>
+            {/* Solution + Coach Tip + AI Doubts */}
+            <div className="border rounded-xl overflow-hidden">
+              <button
+                onClick={() => toggleSolution(q)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
+              >
+                <span>View Solution</span>
+                <ChevronRight className={`w-4 h-4 transition-transform ${isSolutionOpen ? "rotate-90" : ""}`} />
+              </button>
+
+              {isSolutionOpen && (
+                <div className="border-t px-4 pb-4 space-y-4 mt-0">
+                  {/* Solution */}
+                  <div className="bg-muted/50 rounded-lg p-4 text-sm leading-relaxed mt-3">
+                    <MathRenderer>{q.explanation}</MathRenderer>
+                  </div>
+
+                  {/* Coach's Tip */}
+                  <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-accent mb-2">
+                      <Lightbulb className="w-3.5 h-3.5" />
+                      Coach's Tip
+                    </div>
+                    {isImprovementLoading ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Generating feedback...
+                      </div>
+                    ) : improvement ? (
+                      <p className="text-sm text-foreground/80 leading-relaxed">{improvement}</p>
+                    ) : null}
+                  </div>
+
+                  {/* AI Doubts */}
+                  <div>
+                    {doubtOpen !== q.id ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDoubtOpen(q.id)}
+                        className="gap-2"
+                      >
+                        <Bot className="w-4 h-4" />
+                        AI Doubts 🤖
+                      </Button>
+                    ) : (
+                      <div className="border rounded-lg p-3 space-y-3 bg-background">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <Bot className="w-4 h-4 text-accent" />
+                            Ask AI about this question
+                          </div>
+                          <button
+                            onClick={() => setDoubtOpen(null)}
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            ✕
+                          </button>
                         </div>
 
-                        {/* AI Doubts Button & Chat */}
-                        <div className="mt-3">
-                          {doubtOpen !== q.id ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setDoubtOpen(q.id)}
-                              className="gap-2"
-                            >
-                              <Bot className="w-4 h-4" />
-                              AI Doubts 🤖
-                            </Button>
-                          ) : (
-                            <div className="border rounded-lg p-3 space-y-3 bg-background">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                  <Bot className="w-4 h-4 text-accent" />
-                                  Ask AI about this question
-                                </div>
-                                <button
-                                  onClick={() => setDoubtOpen(null)}
-                                  className="text-xs text-muted-foreground hover:text-foreground"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-
-                              {/* Suggested starters when no messages yet */}
-                              {msgs.length === 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                  {[
-                                    "How did you get this answer?",
-                                    "Why is option " + q.correct_answer + " correct?",
-                                    "Explain the formula used here",
-                                  ].map((suggestion) => (
-                                    <button
-                                      key={suggestion}
-                                      onClick={() => {
-                                        setDoubtInput(suggestion);
-                                        setTimeout(() => {
-                                          setDoubtInput("");
-                                          const prev = doubtMessages.get(q.id) || [];
-                                          const newMsgs = [...prev, { role: "user" as const, content: suggestion }];
-                                          setDoubtMessages((m) => new Map(m).set(q.id, newMsgs));
-                                          setDoubtLoading(true);
-                                          const userResp = responses.get(q.id);
-                                          const contextMsg = buildContextMessage(q, userResp);
-                                          fetch(CHAT_URL, {
-                                            method: "POST",
-                                            headers: {
-                                              "Content-Type": "application/json",
-                                              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                                            },
-                                            body: JSON.stringify({
-                                              messages: [
-                                                { role: "system", content: contextMsg },
-                                                { role: "user", content: suggestion },
-                                              ],
-                                              sessionId: testId,
-                                              questionId: q.id,
-                                            }),
-                                          }).then(async (r) => {
-                                            if (!r.ok || !r.body) throw new Error("Failed");
-                                            const reader = r.body.getReader();
-                                            const decoder = new TextDecoder();
-                                            let assistantContent = "";
-                                            let textBuffer = "";
-                                            while (true) {
-                                              const { done, value } = await reader.read();
-                                              if (done) break;
-                                              textBuffer += decoder.decode(value, { stream: true });
-                                              let ni: number;
-                                              while ((ni = textBuffer.indexOf("\n")) !== -1) {
-                                                let line = textBuffer.slice(0, ni);
-                                                textBuffer = textBuffer.slice(ni + 1);
-                                                if (line.endsWith("\r")) line = line.slice(0, -1);
-                                                if (line.startsWith(":") || line.trim() === "") continue;
-                                                if (!line.startsWith("data: ")) continue;
-                                                const jsonStr = line.slice(6).trim();
-                                                if (jsonStr === "[DONE]") break;
-                                                try {
-                                                  const parsed = JSON.parse(jsonStr);
-                                                  const delta = parsed.choices?.[0]?.delta?.content;
-                                                  if (delta) {
-                                                    assistantContent += delta;
-                                                    setDoubtMessages((m) => {
-                                                      const cur = m.get(q.id) || [];
-                                                      const last = cur[cur.length - 1];
-                                                      if (last?.role === "assistant") {
-                                                        return new Map(m).set(q.id, [...cur.slice(0, -1), { role: "assistant", content: assistantContent }]);
-                                                      }
-                                                      return new Map(m).set(q.id, [...cur, { role: "assistant", content: assistantContent }]);
-                                                    });
-                                                  }
-                                                } catch { textBuffer = line + "\n" + textBuffer; break; }
-                                              }
-                                            }
-                                            if (!assistantContent) {
-                                              setDoubtMessages((m) => {
-                                                const cur = m.get(q.id) || [];
-                                                return new Map(m).set(q.id, [...cur, { role: "assistant", content: "Sorry, I couldn't generate a response." }]);
-                                              });
-                                            }
-                                          }).catch(() => {
+                        {/* Suggested starters */}
+                        {msgs.length === 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              "How did you get this answer?",
+                              `Why is option ${q.correct_answer} correct?`,
+                              "Explain the formula used here",
+                            ].map((suggestion) => (
+                              <button
+                                key={suggestion}
+                                onClick={async () => {
+                                  const prev = doubtMessages.get(q.id) || [];
+                                  const newMsgs = [...prev, { role: "user" as const, content: suggestion }];
+                                  setDoubtMessages((m) => new Map(m).set(q.id, newMsgs));
+                                  setDoubtLoading(true);
+                                  const userResp = responses.get(q.id);
+                                  const contextMsg = buildContextMessage(q, userResp);
+                                  try {
+                                    const r = await fetch(CHAT_URL, {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                                      },
+                                      body: JSON.stringify({
+                                        messages: [
+                                          { role: "system", content: contextMsg },
+                                          { role: "user", content: suggestion },
+                                        ],
+                                        sessionId: testId,
+                                        questionId: q.id,
+                                      }),
+                                    });
+                                    if (!r.ok || !r.body) throw new Error("Failed");
+                                    const reader = r.body.getReader();
+                                    const decoder = new TextDecoder();
+                                    let assistantContent = "";
+                                    let textBuffer = "";
+                                    while (true) {
+                                      const { done, value } = await reader.read();
+                                      if (done) break;
+                                      textBuffer += decoder.decode(value, { stream: true });
+                                      let ni: number;
+                                      while ((ni = textBuffer.indexOf("\n")) !== -1) {
+                                        let line = textBuffer.slice(0, ni);
+                                        textBuffer = textBuffer.slice(ni + 1);
+                                        if (line.endsWith("\r")) line = line.slice(0, -1);
+                                        if (!line.startsWith("data: ")) continue;
+                                        const jsonStr = line.slice(6).trim();
+                                        if (jsonStr === "[DONE]") break;
+                                        try {
+                                          const parsed = JSON.parse(jsonStr);
+                                          const delta = parsed.choices?.[0]?.delta?.content;
+                                          if (delta) {
+                                            assistantContent += delta;
                                             setDoubtMessages((m) => {
                                               const cur = m.get(q.id) || [];
-                                              return new Map(m).set(q.id, [...cur, { role: "assistant", content: "Error connecting to AI. Please try again." }]);
+                                              const last = cur[cur.length - 1];
+                                              if (last?.role === "assistant") {
+                                                return new Map(m).set(q.id, [...cur.slice(0, -1), { role: "assistant", content: assistantContent }]);
+                                              }
+                                              return new Map(m).set(q.id, [...cur, { role: "assistant", content: assistantContent }]);
                                             });
-                                          }).finally(() => setDoubtLoading(false));
-                                        }, 0);
-                                      }}
-                                      className="text-xs px-3 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 transition-colors"
-                                    >
-                                      {suggestion}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Messages */}
-                              {msgs.length > 0 && (
-                                <div className="space-y-2 max-h-72 overflow-y-auto scroll-smooth">
-                                  {msgs.map((m, mi) => (
-                                    <div
-                                      key={mi}
-                                      className={`text-sm rounded-lg px-3 py-2 ${
-                                        m.role === "user"
-                                          ? "bg-primary text-primary-foreground ml-8"
-                                          : "bg-muted mr-8"
-                                      }`}
-                                    >
-                                      {m.role === "assistant" ? (
-                                        <MathRenderer>{m.content}</MathRenderer>
-                                      ) : (
-                                        m.content
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Input */}
-                              <div className="flex gap-2">
-                                <input
-                                  value={doubtInput}
-                                  onChange={(e) => setDoubtInput(e.target.value)}
-                                  onKeyDown={(e) =>
-                                    e.key === "Enter" &&
-                                    !e.shiftKey &&
-                                    handleAskDoubt(q.id, q)
+                                          }
+                                        } catch { textBuffer = line + "\n" + textBuffer; break; }
+                                      }
+                                    }
+                                    if (!assistantContent) {
+                                      setDoubtMessages((m) => {
+                                        const cur = m.get(q.id) || [];
+                                        return new Map(m).set(q.id, [...cur, { role: "assistant", content: "Sorry, I couldn't generate a response." }]);
+                                      });
+                                    }
+                                  } catch {
+                                    setDoubtMessages((m) => {
+                                      const cur = m.get(q.id) || [];
+                                      return new Map(m).set(q.id, [...cur, { role: "assistant", content: "Error connecting to AI. Please try again." }]);
+                                    });
+                                  } finally {
+                                    setDoubtLoading(false);
                                   }
-                                  placeholder="Ask anything about this question..."
-                                  className="flex-1 px-3 py-2 rounded-md border bg-background text-foreground text-sm focus:border-accent focus:outline-none"
-                                  disabled={doubtLoading}
-                                />
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleAskDoubt(q.id, q)}
-                                  disabled={!doubtInput.trim() || doubtLoading}
-                                  className="bg-accent text-accent-foreground hover:bg-accent/90"
-                                >
-                                  {doubtLoading ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <Send className="w-4 h-4" />
-                                  )}
-                                </Button>
+                                }}
+                                className="text-xs px-3 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 transition-colors"
+                              >
+                                {suggestion}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Messages */}
+                        {msgs.length > 0 && (
+                          <div className="space-y-2 max-h-72 overflow-y-auto scroll-smooth">
+                            {msgs.map((m, mi) => (
+                              <div
+                                key={mi}
+                                className={`text-sm rounded-lg px-3 py-2 ${
+                                  m.role === "user"
+                                    ? "bg-primary text-primary-foreground ml-8"
+                                    : "bg-muted mr-8"
+                                }`}
+                              >
+                                {m.role === "assistant" ? (
+                                  <MathRenderer>{m.content}</MathRenderer>
+                                ) : (
+                                  m.content
+                                )}
                               </div>
-                            </div>
-                          )}
+                            ))}
+                            <div ref={messagesEndRef} />
+                          </div>
+                        )}
+
+                        {/* Input */}
+                        <div className="flex gap-2">
+                          <input
+                            value={doubtInput}
+                            onChange={(e) => setDoubtInput(e.target.value)}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && !e.shiftKey && handleAskDoubt(q.id, q)
+                            }
+                            placeholder="Ask anything about this question..."
+                            className="flex-1 px-3 py-2 rounded-md border bg-background text-foreground text-sm focus:border-accent focus:outline-none"
+                            disabled={doubtLoading}
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handleAskDoubt(q.id, q)}
+                            disabled={!doubtInput.trim() || doubtLoading}
+                            className="bg-accent text-accent-foreground hover:bg-accent/90"
+                          >
+                            {doubtLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Send className="w-4 h-4" />
+                            )}
+                          </Button>
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+
+            {/* Prev / Next navigation */}
+            <div className="flex items-center gap-3 pt-2 border-t">
+              <Button
+                variant="outline"
+                onClick={() => goTo(currentIndex - 1)}
+                disabled={currentIndex === 0}
+                className="active:scale-[0.97] transition-transform"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Prev
+              </Button>
+              <span className="text-xs text-muted-foreground mx-auto">
+                {currentIndex + 1} / {questions.length}
+              </span>
+              <Button
+                onClick={() => goTo(currentIndex + 1)}
+                disabled={currentIndex === questions.length - 1}
+                className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-transform"
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+
+          </div>
+        </main>
+
+        {/* Question palette sidebar */}
+        <aside className="w-64 border-l bg-card overflow-y-auto p-4 hidden lg:block shrink-0">
+          <div className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Questions</div>
+          <div className="grid grid-cols-2 gap-1.5 text-xs mb-4">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-[hsl(var(--success))]" /> Correct: {correct}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-destructive" /> Wrong: {incorrect}
+            </div>
+            <div className="flex items-center gap-1.5 col-span-2">
+              <span className="w-3 h-3 rounded bg-secondary border" /> Skipped: {unattempted}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {questions.map((question, idx) => {
+              const r = responses.get(question.id);
+              const s = getStatus(question, r);
+              return (
+                <button
+                  key={question.id}
+                  onClick={() => goTo(idx)}
+                  className={`w-9 h-9 rounded-lg text-xs font-bold transition-all active:scale-95 border-2 ${
+                    idx === currentIndex
+                      ? "border-accent scale-110 shadow-md"
+                      : "border-transparent"
+                  } ${
+                    s === "correct"
+                      ? "bg-[hsl(var(--success))] text-white"
+                      : s === "wrong"
+                      ? "bg-destructive text-white"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {idx + 1}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
       </div>
     </div>
   );
 };
-
-function SummaryCard({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="bg-card border rounded-xl p-3 flex items-center gap-3">
-      {icon}
-      <div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-sm font-bold">{value}</div>
-      </div>
-    </div>
-  );
-}
 
 export default AnalysisPage;
