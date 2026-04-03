@@ -434,6 +434,11 @@ const ResultsPage = () => {
           <Button variant="outline" onClick={() => navigate("/")} className="active:scale-[0.97] transition-transform">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
           </Button>
+          {sessionStorage.getItem("lastSessionId") && (
+            <Button variant="outline" onClick={() => navigate(`/analysis/${sessionStorage.getItem("lastSessionId")}`)} className="active:scale-[0.97] transition-transform">
+              View Detailed Analysis
+            </Button>
+          )}
           <Button onClick={() => navigate("/test")} className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-transform">
             Retake Test
           </Button>
