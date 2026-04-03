@@ -55,6 +55,7 @@ interface SessionData {
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/doubt-solver`;
+
 const getOptionText = (opt: any): string => {
   if (typeof opt === "string") return opt;
   if (opt === null || opt === undefined) return "";
@@ -352,12 +353,15 @@ You already know everything about this question. Answer the student's doubts cle
                 {/* Question header */}
                 <div className="p-4 pb-3">
                   <div className="flex items-start gap-3">
+                    {/* Status icon + Q number */}
                     <div className="flex items-center gap-2 shrink-0 mt-0.5">
                       {status.icon}
                       <span className="text-sm font-bold text-muted-foreground">
                         Q{idx + 1}
                       </span>
                     </div>
+
+                    {/* Question content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span
@@ -377,16 +381,24 @@ You already know everything about this question. Answer the student's doubts cle
                         <span className="text-xs text-muted-foreground">
                           {q.topic}
                         </span>
-                        {resp && resp.time_spent > 0 && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatTime(resp.time_spent)}
-                          </span>
-                        )}
                       </div>
                       <div className="text-sm leading-relaxed">
                         <MathRenderer>{q.text}</MathRenderer>
                       </div>
+                    </div>
+
+                    {/* Time badge — top-right corner */}
+                    <div className="shrink-0 ml-auto">
+                      {resp && resp.time_spent > 0 ? (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1 bg-muted px-2 py-1 rounded-md whitespace-nowrap">
+                          <Clock className="w-3 h-3" />
+                          {formatTime(resp.time_spent)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md whitespace-nowrap">
+                          Not attempted
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
