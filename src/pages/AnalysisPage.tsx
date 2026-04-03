@@ -454,14 +454,114 @@ You already know everything about this question. Answer the student's doubts cle
                             </Button>
                           ) : (
                             <div className="border rounded-lg p-3 space-y-3 bg-background">
-                              <div className="flex items-center gap-2 text-sm font-medium">
-                                <Bot className="w-4 h-4 text-accent" />
-                                Ask AI about this question
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                  <Bot className="w-4 h-4 text-accent" />
+                                  Ask AI about this question
+                                </div>
+                                <button
+                                  onClick={() => setDoubtOpen(null)}
+                                  className="text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  ✕
+                                </button>
                               </div>
+
+                              {/* Suggested starters when no messages yet */}
+                              {msgs.length === 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {[
+                                    "How did you get this answer?",
+                                    "Why is option " + q.correct_answer + " correct?",
+                                    "Explain the formula used here",
+                                  ].map((suggestion) => (
+                                    <button
+                                      key={suggestion}
+                                      onClick={() => {
+                                        setDoubtInput(suggestion);
+                                        setTimeout(() => {
+                                          setDoubtInput("");
+                                          const prev = doubtMessages.get(q.id) || [];
+                                          const newMsgs = [...prev, { role: "user" as const, content: suggestion }];
+                                          setDoubtMessages((m) => new Map(m).set(q.id, newMsgs));
+                                          setDoubtLoading(true);
+                                          const userResp = responses.get(q.id);
+                                          const contextMsg = buildContextMessage(q, userResp);
+                                          fetch(CHAT_URL, {
+                                            method: "POST",
+                                            headers: {
+                                              "Content-Type": "application/json",
+                                              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                                            },
+                                            body: JSON.stringify({
+                                              messages: [
+                                                { role: "system", content: contextMsg },
+                                                { role: "user", content: suggestion },
+                                              ],
+                                              sessionId: testId,
+                                              questionId: q.id,
+                                            }),
+                                          }).then(async (r) => {
+                                            if (!r.ok || !r.body) throw new Error("Failed");
+                                            const reader = r.body.getReader();
+                                            const decoder = new TextDecoder();
+                                            let assistantContent = "";
+                                            let textBuffer = "";
+                                            while (true) {
+                                              const { done, value } = await reader.read();
+                                              if (done) break;
+                                              textBuffer += decoder.decode(value, { stream: true });
+                                              let ni: number;
+                                              while ((ni = textBuffer.indexOf("\n")) !== -1) {
+                                                let line = textBuffer.slice(0, ni);
+                                                textBuffer = textBuffer.slice(ni + 1);
+                                                if (line.endsWith("\r")) line = line.slice(0, -1);
+                                                if (line.startsWith(":") || line.trim() === "") continue;
+                                                if (!line.startsWith("data: ")) continue;
+                                                const jsonStr = line.slice(6).trim();
+                                                if (jsonStr === "[DONE]") break;
+                                                try {
+                                                  const parsed = JSON.parse(jsonStr);
+                                                  const delta = parsed.choices?.[0]?.delta?.content;
+                                                  if (delta) {
+                                                    assistantContent += delta;
+                                                    setDoubtMessages((m) => {
+                                                      const cur = m.get(q.id) || [];
+                                                      const last = cur[cur.length - 1];
+                                                      if (last?.role === "assistant") {
+                                                        return new Map(m).set(q.id, [...cur.slice(0, -1), { role: "assistant", content: assistantContent }]);
+                                                      }
+                                                      return new Map(m).set(q.id, [...cur, { role: "assistant", content: assistantContent }]);
+                                                    });
+                                                  }
+                                                } catch { textBuffer = line + "\n" + textBuffer; break; }
+                                              }
+                                            }
+                                            if (!assistantContent) {
+                                              setDoubtMessages((m) => {
+                                                const cur = m.get(q.id) || [];
+                                                return new Map(m).set(q.id, [...cur, { role: "assistant", content: "Sorry, I couldn't generate a response." }]);
+                                              });
+                                            }
+                                          }).catch(() => {
+                                            setDoubtMessages((m) => {
+                                              const cur = m.get(q.id) || [];
+                                              return new Map(m).set(q.id, [...cur, { role: "assistant", content: "Error connecting to AI. Please try again." }]);
+                                            });
+                                          }).finally(() => setDoubtLoading(false));
+                                        }, 0);
+                                      }}
+                                      className="text-xs px-3 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 transition-colors"
+                                    >
+                                      {suggestion}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
 
                               {/* Messages */}
                               {msgs.length > 0 && (
-                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                <div className="space-y-2 max-h-72 overflow-y-auto scroll-smooth">
                                   {msgs.map((m, mi) => (
                                     <div
                                       key={mi}
@@ -491,7 +591,7 @@ You already know everything about this question. Answer the student's doubts cle
                                     !e.shiftKey &&
                                     handleAskDoubt(q.id, q)
                                   }
-                                  placeholder="Why is option A correct?"
+                                  placeholder="Ask anything about this question..."
                                   className="flex-1 px-3 py-2 rounded-md border bg-background text-foreground text-sm focus:border-accent focus:outline-none"
                                   disabled={doubtLoading}
                                 />
