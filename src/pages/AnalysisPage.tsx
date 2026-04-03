@@ -489,7 +489,7 @@ You already know everything about this question. Answer the student's doubts cle
                                   onKeyDown={(e) =>
                                     e.key === "Enter" &&
                                     !e.shiftKey &&
-                                    handleAskDoubt(q.id, q.text)
+                                    handleAskDoubt(q.id, q)
                                   }
                                   placeholder="Why is option A correct?"
                                   className="flex-1 px-3 py-2 rounded-md border bg-background text-foreground text-sm focus:border-accent focus:outline-none"
