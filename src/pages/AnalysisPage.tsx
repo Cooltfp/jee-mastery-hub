@@ -64,6 +64,15 @@ const getOptionText = (opt: any): string => {
 
 const optionLabels = ["A", "B", "C", "D"];
 
+const stripMarkdown = (text: string): string => {
+  return text
+    .replace(/^#{1,6}\s+/gm, "")      // remove ### headings
+    .replace(/\*\*([^*]+)\*\*/g, "$1") // remove **bold**
+    .replace(/\*([^*]+)\*/g, "$1")     // remove *italic*
+    .replace(/^[-*]\s+/gm, "• ")       // convert bullet points to •
+    .trim();
+};
+
 
 const AnalysisPage = () => {
   const { testId } = useParams<{ testId: string }>();
@@ -166,7 +175,7 @@ ${optionsText}
 
 **Solution/Explanation:** ${q.explanation}
 
-You already know everything about this question. Answer the student's doubts clearly and concisely. Use LaTeX for math. Do not ask the student to provide the question again.`;
+You already know everything about this question. Answer the student's doubts clearly and concisely. Use LaTeX for math expressions (wrap in $ for inline, $$ for block). Do not use markdown formatting — no hashtags, no asterisks for bold, no bullet points, no headers. Write in plain sentences and use LaTeX only for mathematical notation. Do not ask the student to provide the question again.`;
   };
 
   const fetchImprovement = async (q: QuestionData) => {
@@ -552,7 +561,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                         <Loader2 className="w-3 h-3 animate-spin" /> Generating feedback...
                       </div>
                     ) : improvement ? (
-                      <p className="text-sm text-foreground/80 leading-relaxed">{improvement}</p>
+                      <p className="text-sm text-foreground/80 leading-relaxed">{stripMarkdown(improvement)}</p>
                     ) : null}
                   </div>
 
@@ -686,7 +695,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                                 }`}
                               >
                                 {m.role === "assistant" ? (
-                                  <MathRenderer>{m.content}</MathRenderer>
+                                  <MathRenderer>{stripMarkdown(m.content)}</MathRenderer>
                                 ) : (
                                   m.content
                                 )}
