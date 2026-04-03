@@ -255,11 +255,17 @@ const TestPage = () => {
   }, [dbSessionId, dbQuestionIds]);
 
   const goToQuestion = useCallback((index: number) => {
-    saveCurrentQuestionTime();
     setSession((prev) => {
       if (!prev) return prev;
       const states = [...prev.questionStates];
-      syncResponseToDb(prev.currentQuestionIndex, states[prev.currentQuestionIndex]);
+      const updatedState = {
+        ...states[prev.currentQuestionIndex],
+        timeSpent: states[prev.currentQuestionIndex].timeSpent + questionTimerRef.current,
+      };
+      states[prev.currentQuestionIndex] = updatedState;
+      questionTimerRef.current = 0;
+      lastTickRef.current = Date.now();
+      syncResponseToDb(prev.currentQuestionIndex, updatedState);
       if (states[index].status === "not-visited") {
         states[index] = { ...states[index], status: "not-answered" };
       }
