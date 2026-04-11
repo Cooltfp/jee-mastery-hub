@@ -16,6 +16,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Lightbulb,
+  HelpCircle,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -66,12 +69,37 @@ const optionLabels = ["A", "B", "C", "D"];
 
 const stripMarkdown = (text: string): string => {
   return text
-    .replace(/^#{1,6}\s*/gm, "")          // remove # ## ### headings
-    .replace(/\*\*([^*]+)\*\*/g, "$1")    // remove **bold**
-    .replace(/\*([^*]+)\*/g, "$1")        // remove *italic*
-    .replace(/^[-*]\s+/gm, "• ")          // bullet points to •
-    .replace(/^\d+\.\s+/gm, (m) => m)     // keep numbered lists as-is
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/^[-*]\s+/gm, "• ")
+    .replace(/^\d+\.\s+/gm, (m) => m)
     .trim();
+};
+
+const AIMessage = ({ content }: { content: string }) => {
+  const cleaned = stripMarkdown(content);
+  const parts = cleaned.split(/(?=\n?\d+\.\s)/);
+  return (
+    <div className="space-y-2">
+      {parts.map((part, i) => {
+        const match = part.match(/^(\n?(\d+)\.\s)([\s\S]*)/);
+        if (match) {
+          return (
+            <div key={i} className="flex gap-2">
+              <span className="font-bold text-accent shrink-0 min-w-[1.5rem]">{match[2]}.</span>
+              <div className="flex-1">
+                <MathRenderer>{match[3].trim()}</MathRenderer>
+              </div>
+            </div>
+          );
+        }
+        return part.trim() ? (
+          <div key={i}><MathRenderer>{part.trim()}</MathRenderer></div>
+        ) : null;
+      })}
+    </div>
+  );
 };
 
 
@@ -98,6 +126,7 @@ const AnalysisPage = () => {
     Map<string, { role: "user" | "assistant"; content: string }[]>
   >(new Map());
   const [doubtLoading, setDoubtLoading] = useState(false);
+  const [doubtFullscreen, setDoubtFullscreen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -274,11 +303,12 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
     });
   };
 
-  const handleAskDoubt = async (questionId: string, q: QuestionData) => {
-    if (!doubtInput.trim() || doubtLoading) return;
-    const userMsg = doubtInput.trim();
-    setDoubtInput("");
+  const handleAskDoubt = async (questionId: string, q: QuestionData, overrideInput?: string) => {
+    const msgText = overrideInput || doubtInput.trim();
+    if (!msgText || doubtLoading) return;
+    if (!overrideInput) setDoubtInput("");
     setDoubtLoading(true);
+    const userMsg = msgText;
 
     const prev = doubtMessages.get(questionId) || [];
     const newMsgs = [...prev, { role: "user" as const, content: userMsg }];
@@ -368,6 +398,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
     if (idx < 0 || idx >= questions.length) return;
     setCurrentIndex(idx);
     setDoubtOpen(null);
+    setDoubtFullscreen(false);
     setDoubtInput("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
