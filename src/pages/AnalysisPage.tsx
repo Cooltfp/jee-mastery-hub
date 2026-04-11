@@ -79,17 +79,17 @@ const stripMarkdown = (text: string): string => {
 
 const AIMessage = ({ content }: { content: string }) => {
   const cleaned = stripMarkdown(content);
-  const parts = cleaned.split(/(?=\n?\d+\.\s)/);
+  const parts = cleaned.split(/(?=(?:^|\n)\d+\.\s)/);
   return (
     <div className="space-y-2">
       {parts.map((part, i) => {
-        const match = part.match(/^(\n?(\d+)\.\s)([\s\S]*)/);
+        const match = part.match(/^\n?(\d+)\.\s([\s\S]*)/);
         if (match) {
           return (
             <div key={i} className="flex gap-2">
-              <span className="font-bold text-accent shrink-0 min-w-[1.5rem]">{match[2]}.</span>
+              <span className="font-bold text-accent shrink-0 min-w-[1.5rem]">{match[1]}.</span>
               <div className="flex-1">
-                <MathRenderer>{match[3].trim()}</MathRenderer>
+                <MathRenderer>{match[2].trim()}</MathRenderer>
               </div>
             </div>
           );
