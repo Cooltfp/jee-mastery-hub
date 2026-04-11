@@ -16,6 +16,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Lightbulb,
+  HelpCircle,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -66,12 +69,37 @@ const optionLabels = ["A", "B", "C", "D"];
 
 const stripMarkdown = (text: string): string => {
   return text
-    .replace(/^#{1,6}\s*/gm, "")          // remove # ## ### headings
-    .replace(/\*\*([^*]+)\*\*/g, "$1")    // remove **bold**
-    .replace(/\*([^*]+)\*/g, "$1")        // remove *italic*
-    .replace(/^[-*]\s+/gm, "• ")          // bullet points to •
-    .replace(/^\d+\.\s+/gm, (m) => m)     // keep numbered lists as-is
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/^[-*]\s+/gm, "• ")
+    .replace(/^\d+\.\s+/gm, (m) => m)
     .trim();
+};
+
+const AIMessage = ({ content }: { content: string }) => {
+  const cleaned = stripMarkdown(content);
+  const parts = cleaned.split(/(?=\n?\d+\.\s)/);
+  return (
+    <div className="space-y-2">
+      {parts.map((part, i) => {
+        const match = part.match(/^(\n?(\d+)\.\s)([\s\S]*)/);
+        if (match) {
+          return (
+            <div key={i} className="flex gap-2">
+              <span className="font-bold text-accent shrink-0 min-w-[1.5rem]">{match[2]}.</span>
+              <div className="flex-1">
+                <MathRenderer>{match[3].trim()}</MathRenderer>
+              </div>
+            </div>
+          );
+        }
+        return part.trim() ? (
+          <div key={i}><MathRenderer>{part.trim()}</MathRenderer></div>
+        ) : null;
+      })}
+    </div>
+  );
 };
 
 
@@ -98,6 +126,7 @@ const AnalysisPage = () => {
     Map<string, { role: "user" | "assistant"; content: string }[]>
   >(new Map());
   const [doubtLoading, setDoubtLoading] = useState(false);
+  const [doubtFullscreen, setDoubtFullscreen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -274,11 +303,12 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
     });
   };
 
-  const handleAskDoubt = async (questionId: string, q: QuestionData) => {
-    if (!doubtInput.trim() || doubtLoading) return;
-    const userMsg = doubtInput.trim();
-    setDoubtInput("");
+  const handleAskDoubt = async (questionId: string, q: QuestionData, overrideInput?: string) => {
+    const msgText = overrideInput || doubtInput.trim();
+    if (!msgText || doubtLoading) return;
+    if (!overrideInput) setDoubtInput("");
     setDoubtLoading(true);
+    const userMsg = msgText;
 
     const prev = doubtMessages.get(questionId) || [];
     const newMsgs = [...prev, { role: "user" as const, content: userMsg }];
@@ -368,6 +398,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
     if (idx < 0 || idx >= questions.length) return;
     setCurrentIndex(idx);
     setDoubtOpen(null);
+    setDoubtFullscreen(false);
     setDoubtInput("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -560,6 +591,23 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                     <MathRenderer>{q.explanation}</MathRenderer>
                   </div>
 
+                  {/* "I don't understand" button */}
+                  <button
+                    onClick={() => {
+                      setDoubtOpen(q.id);
+                      setDoubtFullscreen(false);
+                      const prev = doubtMessages.get(q.id) || [];
+                      if (prev.length === 0) {
+                        const suggestion = "I don't understand the solution. Can you explain it step by step?";
+                        handleAskDoubt(q.id, q, suggestion);
+                      }
+                    }}
+                    className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10 transition-colors font-medium"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    I don't understand this solution — Ask AI
+                  </button>
+
                   {/* Coach's Tip */}
                   <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
                     <div className="flex items-center gap-2 text-xs font-semibold text-accent mb-2">
@@ -581,25 +629,37 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setDoubtOpen(q.id)}
+                        onClick={() => { setDoubtOpen(q.id); setDoubtFullscreen(false); }}
                         className="gap-2"
                       >
                         <Bot className="w-4 h-4" />
                         AI Doubts 🤖
                       </Button>
                     ) : (
-                      <div className="border rounded-lg p-3 space-y-3 bg-background">
+                      <div className={doubtFullscreen
+                        ? "fixed inset-0 z-50 bg-background flex flex-col p-6 gap-4"
+                        : "border rounded-lg p-3 space-y-3 bg-background"
+                      }>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-sm font-medium">
                             <Bot className="w-4 h-4 text-accent" />
                             Ask AI about this question
                           </div>
-                          <button
-                            onClick={() => setDoubtOpen(null)}
-                            className="text-xs text-muted-foreground hover:text-foreground"
-                          >
-                            ✕
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setDoubtFullscreen(f => !f)}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                              title={doubtFullscreen ? "Exit fullscreen" : "Expand"}
+                            >
+                              {doubtFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={() => { setDoubtOpen(null); setDoubtFullscreen(false); }}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
 
                         {/* Suggested starters */}
@@ -612,78 +672,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                             ].map((suggestion) => (
                               <button
                                 key={suggestion}
-                                onClick={async () => {
-                                  const prev = doubtMessages.get(q.id) || [];
-                                  const newMsgs = [...prev, { role: "user" as const, content: suggestion }];
-                                  setDoubtMessages((m) => new Map(m).set(q.id, newMsgs));
-                                  setDoubtLoading(true);
-                                  const userResp = responses.get(q.id);
-                                  const contextMsg = buildContextMessage(q, userResp);
-                                  try {
-                                    const r = await fetch(CHAT_URL, {
-                                      method: "POST",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                                      },
-                                      body: JSON.stringify({
-                                        messages: [
-                                          { role: "system", content: contextMsg },
-                                          { role: "user", content: suggestion },
-                                        ],
-                                        sessionId: testId,
-                                        questionId: q.id,
-                                      }),
-                                    });
-                                    if (!r.ok || !r.body) throw new Error("Failed");
-                                    const reader = r.body.getReader();
-                                    const decoder = new TextDecoder();
-                                    let assistantContent = "";
-                                    let textBuffer = "";
-                                    while (true) {
-                                      const { done, value } = await reader.read();
-                                      if (done) break;
-                                      textBuffer += decoder.decode(value, { stream: true });
-                                      let ni: number;
-                                      while ((ni = textBuffer.indexOf("\n")) !== -1) {
-                                        let line = textBuffer.slice(0, ni);
-                                        textBuffer = textBuffer.slice(ni + 1);
-                                        if (line.endsWith("\r")) line = line.slice(0, -1);
-                                        if (!line.startsWith("data: ")) continue;
-                                        const jsonStr = line.slice(6).trim();
-                                        if (jsonStr === "[DONE]") break;
-                                        try {
-                                          const parsed = JSON.parse(jsonStr);
-                                          const delta = parsed.choices?.[0]?.delta?.content;
-                                          if (delta) {
-                                            assistantContent += delta;
-                                            setDoubtMessages((m) => {
-                                              const cur = m.get(q.id) || [];
-                                              const last = cur[cur.length - 1];
-                                              if (last?.role === "assistant") {
-                                                return new Map(m).set(q.id, [...cur.slice(0, -1), { role: "assistant", content: assistantContent }]);
-                                              }
-                                              return new Map(m).set(q.id, [...cur, { role: "assistant", content: assistantContent }]);
-                                            });
-                                          }
-                                        } catch { textBuffer = line + "\n" + textBuffer; break; }
-                                      }
-                                    }
-                                    if (!assistantContent) {
-                                      setDoubtMessages((m) => {
-                                        const cur = m.get(q.id) || [];
-                                        return new Map(m).set(q.id, [...cur, { role: "assistant", content: "Sorry, I couldn't generate a response." }]);
-                                      });
-                                    }
-                                  } catch {
-                                    setDoubtMessages((m) => {
-                                      const cur = m.get(q.id) || [];
-                                      return new Map(m).set(q.id, [...cur, { role: "assistant", content: "Error connecting to AI. Please try again." }]);
-                                    });
-                                  } finally {
-                                    setDoubtLoading(false);
-                                  }
-                                }}
+                                onClick={() => handleAskDoubt(q.id, q, suggestion)}
                                 className="text-xs px-3 py-1.5 rounded-full border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 transition-colors"
                               >
                                 {suggestion}
@@ -694,7 +683,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
 
                         {/* Messages */}
                         {msgs.length > 0 && (
-                          <div className="space-y-2 max-h-72 overflow-y-auto scroll-smooth">
+                          <div className={`space-y-2 overflow-y-auto scroll-smooth ${doubtFullscreen ? "flex-1 max-h-[calc(100vh-200px)]" : "max-h-72"}`}>
                             {msgs.map((m, mi) => (
                               <div
                                 key={mi}
@@ -705,7 +694,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                                 }`}
                               >
                                 {m.role === "assistant" ? (
-                                  <MathRenderer>{stripMarkdown(m.content)}</MathRenderer>
+                                  <AIMessage content={m.content} />
                                 ) : (
                                   m.content
                                 )}
@@ -716,7 +705,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                         )}
 
                         {/* Input */}
-                        <div className="flex gap-2">
+                        <div className={`flex gap-2 ${doubtFullscreen ? "mt-auto" : ""}`}>
                           <input
                             value={doubtInput}
                             onChange={(e) => setDoubtInput(e.target.value)}
