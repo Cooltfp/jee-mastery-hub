@@ -68,6 +68,7 @@ function parsePlainTextQuestions(raw: string): any[] {
         correctAnswer,
         explanation: getField("SOLUTION"),
         topic: getField("CHAPTER") || "General",
+        source: getField("SOURCE") || "Original",
         marks: 4,
         negativeMarks: type === "numerical" ? 0 : 1,
       });
