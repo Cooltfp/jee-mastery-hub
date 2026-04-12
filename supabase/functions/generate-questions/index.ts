@@ -148,14 +148,24 @@ serve(async (req) => {
 
     const mcqCount = Math.max(1, totalQuestions - Math.ceil(totalQuestions / 6));
     const numCount = totalQuestions - mcqCount;
+    const pyqCount = globalLevel >= 3 ? Math.ceil(totalQuestions * 0.25) : Math.ceil(totalQuestions * 0.10);
 
-    const systemPrompt = `You are a JEE Mains question paper setter. Generate exactly ${totalQuestions} unique questions.
+    const systemPrompt = `You are a JEE Mains question paper setter with access to JEE PYQ archives from 2019–2024. Generate exactly ${totalQuestions} unique questions.
 
 ${subjectInstructions}
 ${topicHints}
 
-Mix of MCQ (${mcqCount}) and Numerical (${numCount}, at least 1 per subject).
-For Numerical questions: OPTION_A through OPTION_D should say "Numerical Answer" and CORRECT should be the numerical value.
+VARIETY DIRECTIVE (important — apply this throughout): ${varietySeed}
+
+QUESTION MIX RULES:
+- Total: ${totalQuestions} questions — ${mcqCount} MCQ and ${numCount} Numerical (at least 1 numerical per subject)
+- Exactly ${pyqCount} of the total questions must be styled as JEE PYQ (Previous Year Questions). For these, add a SOURCE tag like: SOURCE: JEE Mains ${pickedYear1} or JEE Mains ${pickedYear2}. Alternate years across the PYQ questions.
+- The remaining ${totalQuestions - pyqCount} questions must be original, freshly composed questions — NOT recycled versions of common textbook examples.
+- Do NOT repeat question patterns across the set. Each question must test a distinctly different concept, formula, or reasoning style from the others.
+- For Numerical questions: OPTION_A through OPTION_D should say "Numerical Answer" and CORRECT should be the numerical value.
+
+DIFFICULTY DISTRIBUTION (for level ${globalLevel}):
+${globalLevel === 1 ? "- 70% easy, 30% medium. Only direct single-formula questions." : ""}${globalLevel === 2 ? "- 40% easy, 50% medium, 10% hard. Mostly textbook-style." : ""}${globalLevel === 3 ? "- 20% easy, 50% medium, 30% hard. JEE Mains realistic mix." : ""}${globalLevel === 4 ? "- 10% easy, 40% medium, 50% hard. Advanced application problems." : ""}${globalLevel === 5 ? "- 100% hard. All multi-concept, high-reasoning problems." : ""}
 
 RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS. DO NOT wrap in \`\`\`.
 
@@ -167,6 +177,7 @@ SUBJECT: (Physics or Chemistry or Mathematics)
 CHAPTER: (chapter name)
 TYPE: (mcq or numerical)
 DIFFICULTY: (easy, medium, or hard)
+SOURCE: (either "Original" or "JEE Mains YYYY" for PYQ questions)
 TEXT: (question text with LaTeX in dollar signs)
 OPTION_A: (option with LaTeX in dollar signs)
 OPTION_B: (option with LaTeX in dollar signs)
@@ -183,15 +194,16 @@ CRITICAL LaTeX RULES:
 - Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\omega$, $\\pi$, $\\phi$
 - Operators: $\\times$, $\\div$, $\\pm$, $\\leq$, $\\geq$, $\\neq$, $\\approx$
 - Integrals: $\\int_0^1 x^2 \\, dx$
-- NEVER write bare commands without backslashes (e.g., never write "frac", always write "$\\frac{}{}$")
+- NEVER write bare commands without backslashes
 
-EXAMPLE:
+EXAMPLE (PYQ style):
 ===QUESTION===
 ID: 1
 SUBJECT: Physics
 CHAPTER: Electrostatics
 TYPE: mcq
 DIFFICULTY: medium
+SOURCE: JEE Mains 2022
 TEXT: The electric field at distance $r$ from an infinite line charge with linear charge density $\\lambda$ is:
 OPTION_A: $\\frac{\\lambda}{2\\pi\\epsilon_0 r}$
 OPTION_B: $\\frac{\\lambda}{4\\pi\\epsilon_0 r^2}$
