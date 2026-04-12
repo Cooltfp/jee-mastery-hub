@@ -23,10 +23,7 @@ function parsePlainTextQuestions(raw: string): any[] {
       if (!content || !content.trim()) continue;
 
       const getField = (name: string): string => {
-        const regex = new RegExp(
-          `^${name}:\\\\s*(.+?)(?=\\\\n(?:ID|SUBJECT|CHAPTER|TYPE|DIFFICULTY|SOURCE|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`,
-          "ms"
-        );
+        const regex = new RegExp(`^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|TYPE|DIFFICULTY|SOURCE|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`, "ms");
         const match = content.match(regex);
         return match ? match[1].trim() : "";
       };
