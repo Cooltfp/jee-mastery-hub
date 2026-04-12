@@ -73,6 +73,7 @@ export default function PreTestDialog({
   const [confidence, setConfidence] = useState<Confidence | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [perSubjectLevels, setPerSubjectLevels] = useState<Record<string, number>>({});
+  const [includeInteger, setIncludeInteger] = useState(true);
   const [recommendations, setRecommendations] = useState<Record<string, number>>({});
 
   useEffect(() => {
