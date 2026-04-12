@@ -89,6 +89,20 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const globalLevel = Math.min(5, Math.max(1, body.level || 3));
 
+    const varietySeeds = [
+      "Focus on conceptual traps and common misconceptions students fall for.",
+      "Focus on data interpretation and graph-based reasoning.",
+      "Focus on multi-step derivations and proof-based reasoning.",
+      "Focus on real-world application and unit analysis problems.",
+      "Focus on problems where eliminating wrong options by logic is key.",
+      "Focus on mixed formula application across sub-topics.",
+      "Focus on problems involving approximations and limiting cases.",
+    ];
+    const pyqYears = [2019, 2020, 2021, 2022, 2023, 2024];
+    const pickedYear1 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
+    const pickedYear2 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
+    const varietySeed = varietySeeds[Math.floor(Math.random() * varietySeeds.length)];
+
     // ─── Build subject instructions from either `selections` or legacy params ───
     let totalQuestions = 30;
     let subjectInstructions = "";
