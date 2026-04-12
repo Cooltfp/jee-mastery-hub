@@ -36,7 +36,7 @@ const TestPage = () => {
     const generateQuestions = async () => {
       try {
         // Build edge function request body
-        const requestBody: any = { level: preTestConfig.level };
+        const requestBody: any = { level: preTestConfig.level, includeInteger: preTestConfig.includeInteger ?? true };
 
         if (preTestConfig.selections && preTestConfig.selections.length > 0) {
           requestBody.selections = preTestConfig.selections.map((sel) => ({
