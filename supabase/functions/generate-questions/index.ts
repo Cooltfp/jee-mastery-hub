@@ -6,11 +6,11 @@ const corsHeaders = {
 };
 
 const LEVEL_DESCRIPTIONS: Record<number, string> = {
-  1: "Level 1 (Foundational): Direct formula-based questions. Single-step calculations. Easy difficulty only.",
-  2: "Level 2 (Standard): Standard textbook problems. Two-step calculations. Mix of easy and medium difficulty.",
-  3: "Level 3 (JEE Mains): Exact JEE Mains difficulty with multi-step logic. Application-based MCQs. Mix of easy, medium, and hard.",
-  4: "Level 4 (Intense): Above-average JEE Mains difficulty. Multi-step problems requiring strong conceptual clarity. Mostly medium and hard.",
-  5: "Level 5 (Challenger): Multi-concept questions mixing topics. All hard difficulty. Requires deep understanding.",
+  1: "Level 1 (Foundational): Direct single-formula questions. One-step calculations only. Easy difficulty. Straightforward substitution problems a Class 11 student can solve.",
+  2: "Level 2 (Standard): Standard NCERT-level problems. Two-step calculations. Mix of easy and medium. Moderate application of formulas.",
+  3: "Level 3 (JEE Mains Upper): Upper-bracket JEE Mains difficulty. Multi-step problems requiring strong conceptual understanding. No trivial questions — every question must require genuine reasoning. 20% easy, 50% medium, 30% hard. Avoid questions solvable by direct formula substitution alone.",
+  4: "Level 4 (JEE Advanced Light): JEE Advanced entry-level difficulty. Multi-concept problems that combine two or more chapters. Requires deep understanding, multi-step derivations, and elimination logic. 10% medium, 90% hard. Include at least 2 questions that involve graph/data interpretation.",
+  5: "Level 5 (JEE Advanced Full): Full JEE Advanced difficulty. All questions must be hard. Paragraph-based reasoning, multi-concept integration, tricky edge cases and counterintuitive results. Requires mastery-level understanding. No straightforward calculations — every question must challenge even a well-prepared student.",
 };
 
 function parsePlainTextQuestions(raw: string): any[] {
@@ -47,7 +47,7 @@ function parsePlainTextQuestions(raw: string): any[] {
       const optC = getField("OPTION_C");
       const optD = getField("OPTION_D");
 
-      const options = type === "mcq" && (optA || optB || optC || optD)
+      const options = (type === "mcq") && (optA || optB || optC || optD)
         ? [
             { id: "a", text: optA },
             { id: "b", text: optB },
@@ -67,7 +67,7 @@ function parsePlainTextQuestions(raw: string): any[] {
         topic: getField("CHAPTER") || "General",
         source: getField("SOURCE") || "Original",
         marks: 4,
-        negativeMarks: type === "numerical" ? 0 : 1,
+        negativeMarks: (type === "numerical" || type === "integer") ? 0 : 1,
       });
     } catch (e) {
       console.error("Failed to parse question block:", e);
@@ -86,6 +86,7 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const globalLevel = Math.min(5, Math.max(1, body.level || 3));
+    const includeInteger = body.includeInteger !== false;
 
     const varietySeeds = [
       "Focus on conceptual traps and common misconceptions students fall for.",
@@ -101,13 +102,11 @@ serve(async (req) => {
     const pickedYear2 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
     const varietySeed = varietySeeds[Math.floor(Math.random() * varietySeeds.length)];
 
-    // ─── Build subject instructions from either `selections` or legacy params ───
     let totalQuestions = 30;
     let subjectInstructions = "";
     let topicHints = "";
 
     if (body.selections && Array.isArray(body.selections) && body.selections.length > 0) {
-      // NEW: multi-subject selections format with per-subject question counts
       const subjectMap: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
 
       totalQuestions = 0;
@@ -118,7 +117,6 @@ serve(async (req) => {
         const selCount = sel.totalQuestions || 10;
         totalQuestions += selCount;
 
-        // If per-chapter question counts provided, build detailed instructions
         if (sel.questionsPerChapter && Object.keys(sel.questionsPerChapter).length > 0) {
           let chapterDetails = "";
           for (const [ch, count] of Object.entries(sel.questionsPerChapter)) {
@@ -132,7 +130,6 @@ serve(async (req) => {
         }
       }
     } else {
-      // LEGACY: single chapter_name + level
       const chapterName: string | null = body.chapter_name || null;
       const levelDesc = LEVEL_DESCRIPTIONS[globalLevel];
 
@@ -146,7 +143,14 @@ serve(async (req) => {
 
     const mcqCount = Math.max(1, totalQuestions - Math.ceil(totalQuestions / 6));
     const numCount = totalQuestions - mcqCount;
+    const integerCount = (includeInteger && globalLevel >= 3) ? Math.ceil(numCount * 0.4) : 0;
+    const pureNumericalCount = numCount - integerCount;
     const pyqCount = globalLevel >= 3 ? Math.ceil(totalQuestions * 0.25) : Math.ceil(totalQuestions * 0.10);
+
+    const integerInstructions = integerCount > 0
+      ? `\n- ${integerCount} of the non-MCQ questions must be Integer type (TYPE: integer). Answer must be a non-negative integer between 0 and 9. OPTION_A through OPTION_D say "Integer Answer". CORRECT is the integer value. No negative marking. At least 1 integer type question per subject when total questions allow it.
+- The remaining ${pureNumericalCount} non-MCQ questions are Numerical type (TYPE: numerical). Answer is any real number (decimals allowed). OPTION_A through OPTION_D say "Numerical Answer". CORRECT is the decimal value.`
+      : `\n- For Numerical questions: OPTION_A through OPTION_D should say "Numerical Answer" and CORRECT should be the numerical value.`;
 
     const systemPrompt = `You are a JEE Mains question paper setter with access to JEE PYQ archives from 2019–2024. Generate exactly ${totalQuestions} unique questions.
 
@@ -156,14 +160,13 @@ ${topicHints}
 VARIETY DIRECTIVE (important — apply this throughout): ${varietySeed}
 
 QUESTION MIX RULES:
-- Total: ${totalQuestions} questions — ${mcqCount} MCQ and ${numCount} Numerical (at least 1 numerical per subject)
+- Total: ${totalQuestions} questions — ${mcqCount} MCQ and ${numCount} non-MCQ (at least 1 non-MCQ per subject)${integerInstructions}
 - Exactly ${pyqCount} of the total questions must be styled as JEE PYQ (Previous Year Questions). For these, add a SOURCE tag like: SOURCE: JEE Mains ${pickedYear1} or JEE Mains ${pickedYear2}. Alternate years across the PYQ questions.
 - The remaining ${totalQuestions - pyqCount} questions must be original, freshly composed questions — NOT recycled versions of common textbook examples.
 - Do NOT repeat question patterns across the set. Each question must test a distinctly different concept, formula, or reasoning style from the others.
-- For Numerical questions: OPTION_A through OPTION_D should say "Numerical Answer" and CORRECT should be the numerical value.
 
-DIFFICULTY DISTRIBUTION (for level ${globalLevel}):
-${globalLevel === 1 ? "- 70% easy, 30% medium. Only direct single-formula questions." : ""}${globalLevel === 2 ? "- 40% easy, 50% medium, 10% hard. Mostly textbook-style." : ""}${globalLevel === 3 ? "- 20% easy, 50% medium, 30% hard. JEE Mains realistic mix." : ""}${globalLevel === 4 ? "- 10% easy, 40% medium, 50% hard. Advanced application problems." : ""}${globalLevel === 5 ? "- 100% hard. All multi-concept, high-reasoning problems." : ""}
+DIFFICULTY DISTRIBUTION (strictly enforce for level ${globalLevel}):
+${globalLevel === 1 ? "- 80% easy, 20% medium. Only direct single-formula substitution. No multi-step reasoning." : ""}${globalLevel === 2 ? "- 50% easy, 40% medium, 10% hard. Standard textbook style." : ""}${globalLevel === 3 ? "- 20% easy, 50% medium, 30% hard. No trivially solvable questions. Every question must require at least 2 reasoning steps." : ""}${globalLevel === 4 ? "- 10% medium, 90% hard. Multi-concept, multi-step. At least 2 questions combining two chapters." : ""}${globalLevel === 5 ? "- 100% hard. JEE Advanced level only. Counterintuitive results, multi-concept, paragraph-based logic." : ""}
 
 RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS. DO NOT wrap in \`\`\`.
 
@@ -173,7 +176,7 @@ For each question, use this exact template:
 ID: (number)
 SUBJECT: (Physics or Chemistry or Mathematics)
 CHAPTER: (chapter name)
-TYPE: (mcq or numerical)
+TYPE: (mcq or numerical or integer)
 DIFFICULTY: (easy, medium, or hard)
 SOURCE: (either "Original" or "JEE Mains YYYY" for PYQ questions)
 TEXT: (question text with LaTeX in dollar signs)
@@ -181,7 +184,7 @@ OPTION_A: (option with LaTeX in dollar signs)
 OPTION_B: (option with LaTeX in dollar signs)
 OPTION_C: (option with LaTeX in dollar signs)
 OPTION_D: (option with LaTeX in dollar signs)
-CORRECT: (A or B or C or D, or numerical value for numerical type)
+CORRECT: (A or B or C or D, or numerical value for numerical type, or integer 0-9 for integer type)
 SOLUTION: (step by step explanation with LaTeX in dollar signs)
 ===END===
 

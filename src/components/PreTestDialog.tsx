@@ -37,6 +37,7 @@ export interface PreTestConfig {
   selections: SubjectSelection[];
   totalTimerMinutes: number;
   totalQuestions: number;
+  includeInteger: boolean;
 }
 
 const SUBJECT_INFO = [
