@@ -18,6 +18,7 @@ import {
   Check,
   RotateCcw,
   SlidersHorizontal,
+  Shuffle,
 } from "lucide-react";
 
 type Confidence = "low" | "moderate" | "high";
@@ -38,6 +39,7 @@ export interface PreTestConfig {
   totalTimerMinutes: number;
   totalQuestions: number;
   includeInteger: boolean;
+  examMode?: string | null;
 }
 
 const SUBJECT_INFO = [
@@ -69,7 +71,7 @@ export default function PreTestDialog({
   const [subjectTotals, setSubjectTotals] = useState<Record<string, number>>({});
 
   // Step 3
-  const [selectedLevel, setSelectedLevel] = useState(3);
+  const [selectedLevel, setSelectedLevel] = useState<number | "random">(3);
   const [confidence, setConfidence] = useState<Confidence | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [perSubjectLevels, setPerSubjectLevels] = useState<Record<string, number>>({});
@@ -243,14 +245,15 @@ export default function PreTestDialog({
   const totalTimer = calculateAdjustedTimer();
 
   // ─── Build selections for config ───────────────────────────
-  const buildSelections = (): SubjectSelection[] => {
+  const buildSelections = (overrideLevel?: number): SubjectSelection[] => {
+    const effectiveLevel = overrideLevel ?? (selectedLevel === "random" ? 3 : selectedLevel);
     return Array.from(selectedSubjects).map((subj) => {
       const chapters = Array.from(selectedChapters[subj] || []);
       const qCount = getSubjectQuestionCount(subj);
       return {
         subject: subj,
         chapters,
-        level: showAdvanced ? perSubjectLevels[subj] || selectedLevel : undefined,
+        level: showAdvanced ? perSubjectLevels[subj] || effectiveLevel : undefined,
         questionsPerChapter: chapters.length > 0 ? (chapterCounts[subj] || {}) : undefined,
         totalQuestions: qCount,
       };
