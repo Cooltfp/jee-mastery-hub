@@ -18,6 +18,7 @@ import {
   Check,
   RotateCcw,
   SlidersHorizontal,
+  Shuffle,
 } from "lucide-react";
 
 type Confidence = "low" | "moderate" | "high";
@@ -38,6 +39,7 @@ export interface PreTestConfig {
   totalTimerMinutes: number;
   totalQuestions: number;
   includeInteger: boolean;
+  examMode?: string | null;
 }
 
 const SUBJECT_INFO = [
@@ -69,7 +71,7 @@ export default function PreTestDialog({
   const [subjectTotals, setSubjectTotals] = useState<Record<string, number>>({});
 
   // Step 3
-  const [selectedLevel, setSelectedLevel] = useState(3);
+  const [selectedLevel, setSelectedLevel] = useState<number | "random">(3);
   const [confidence, setConfidence] = useState<Confidence | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [perSubjectLevels, setPerSubjectLevels] = useState<Record<string, number>>({});
@@ -243,14 +245,15 @@ export default function PreTestDialog({
   const totalTimer = calculateAdjustedTimer();
 
   // ─── Build selections for config ───────────────────────────
-  const buildSelections = (): SubjectSelection[] => {
+  const buildSelections = (overrideLevel?: number): SubjectSelection[] => {
+    const effectiveLevel = overrideLevel ?? (selectedLevel === "random" ? 3 : selectedLevel);
     return Array.from(selectedSubjects).map((subj) => {
       const chapters = Array.from(selectedChapters[subj] || []);
       const qCount = getSubjectQuestionCount(subj);
       return {
         subject: subj,
         chapters,
-        level: showAdvanced ? perSubjectLevels[subj] || selectedLevel : undefined,
+        level: showAdvanced ? perSubjectLevels[subj] || effectiveLevel : undefined,
         questionsPerChapter: chapters.length > 0 ? (chapterCounts[subj] || {}) : undefined,
         totalQuestions: qCount,
       };
@@ -600,6 +603,27 @@ export default function PreTestDialog({
         <div>
           <h2 className="text-lg font-bold tracking-tight mb-3">Choose Level</h2>
           <div className="space-y-2">
+            {/* Random level tile */}
+            <button
+              onClick={() => setSelectedLevel("random")}
+              className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-200 active:scale-[0.99] ${
+                selectedLevel === "random"
+                  ? "border-accent bg-accent/5 shadow-sm"
+                  : "border-border hover:border-muted-foreground/30"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  selectedLevel === "random" ? "bg-accent text-accent-foreground" : "bg-secondary text-foreground"
+                }`}>
+                  <Shuffle className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-sm">Random</span>
+                  <span className="text-xs text-muted-foreground ml-2">Surprise me — picks a level from 1–5</span>
+                </div>
+              </div>
+            </button>
             {LEVELS.map((lvl) => {
               const Icon = levelIcons[lvl.id - 1];
               const selected = selectedLevel === lvl.id;
@@ -643,27 +667,33 @@ export default function PreTestDialog({
             </button>
             {showAdvanced && (
               <div className="mt-2 space-y-2 bg-secondary/30 rounded-xl p-3">
-                {Array.from(selectedSubjects).map((subj) => {
-                  const info = SUBJECT_INFO.find((s) => s.key === subj)!;
-                  const rec = recommendations[subj];
-                  return (
-                    <div key={subj} className="flex items-center gap-3 text-sm">
-                      <span className="w-24">{info.label}</span>
-                      <select
-                        value={perSubjectLevels[subj] || selectedLevel}
-                        onChange={(e) =>
-                          setPerSubjectLevels((prev) => ({ ...prev, [subj]: Number(e.target.value) }))
-                        }
-                        className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
-                      >
-                        {LEVELS.map((l) => (
-                          <option key={l.id} value={l.id}>Level {l.id} — {l.name}</option>
-                        ))}
-                      </select>
-                      {rec && <span className="text-xs text-accent whitespace-nowrap">⭐ {rec}</span>}
-                    </div>
-                  );
-                })}
+                {selectedLevel === "random" ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    Per-subject levels are not available in Random mode — a level will be picked randomly at start.
+                  </p>
+                ) : (
+                  Array.from(selectedSubjects).map((subj) => {
+                    const info = SUBJECT_INFO.find((s) => s.key === subj)!;
+                    const rec = recommendations[subj];
+                    return (
+                      <div key={subj} className="flex items-center gap-3 text-sm">
+                        <span className="w-24">{info.label}</span>
+                        <select
+                          value={perSubjectLevels[subj] || (typeof selectedLevel === "number" ? selectedLevel : 3)}
+                          onChange={(e) =>
+                            setPerSubjectLevels((prev) => ({ ...prev, [subj]: Number(e.target.value) }))
+                          }
+                          className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
+                        >
+                          {LEVELS.map((l) => (
+                            <option key={l.id} value={l.id}>Level {l.id} — {l.name}</option>
+                          ))}
+                        </select>
+                        {rec && <span className="text-xs text-accent whitespace-nowrap">⭐ {rec}</span>}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             )}
           </div>
@@ -694,11 +724,11 @@ export default function PreTestDialog({
         </div>
 
         {/* Integer Type Toggle */}
-        {selectedLevel >= 3 && (
+        {(selectedLevel === "random" || selectedLevel >= 3) && (
           <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-secondary/30">
             <div>
               <div className="font-semibold text-sm">Include Integer Type Questions</div>
-              <div className="text-xs text-muted-foreground">Answer is a non-negative integer (0–9), no negative marking</div>
+              <div className="text-xs text-muted-foreground">Answer is any positive integer, +4/-1 marking</div>
             </div>
             <button
               onClick={() => setIncludeInteger(!includeInteger)}
@@ -725,19 +755,22 @@ export default function PreTestDialog({
             disabled={!confidence}
             onClick={() => {
               if (!confidence) return;
-              const selections = buildSelections();
+              const resolvedLevel = selectedLevel === "random"
+                ? Math.floor(Math.random() * 5) + 1
+                : selectedLevel;
+              const selections = buildSelections(resolvedLevel);
               let chapterName: string | null = null;
               if (selections.length === 1 && selections[0].chapters.length === 1) {
                 chapterName = selections[0].chapters[0];
               }
               onStart({
-                level: selectedLevel,
+                level: resolvedLevel,
                 confidence,
                 chapterName,
                 selections,
                 totalTimerMinutes: totalTimer,
                 totalQuestions,
-                includeInteger: selectedLevel >= 3 ? includeInteger : false,
+                includeInteger: resolvedLevel >= 3 ? includeInteger : false,
               });
             }}
             className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-transform"

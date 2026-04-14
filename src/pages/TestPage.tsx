@@ -22,6 +22,27 @@ const TestPage = () => {
   const questionTimerRef = useRef<number>(0);
   const lastTickRef = useRef<number>(Date.now());
 
+  // Check for exam mode from sessionStorage (set by Index page)
+  useEffect(() => {
+    const examMode = sessionStorage.getItem("examMode");
+    if (examMode) {
+      sessionStorage.removeItem("examMode");
+      const examConfig: PreTestConfig = {
+        level: examMode === "jee_advanced_2026" ? 5 : 3,
+        confidence: "high",
+        chapterName: null,
+        selections: [],
+        totalTimerMinutes: 180,
+        totalQuestions: examMode === "jee_mains_2026" ? 75 : 54,
+        includeInteger: true,
+        examMode,
+      };
+      setPreTestConfig(examConfig);
+      setLoading(true);
+      setLoadingMessage(`Generating ${examMode === "jee_mains_2026" ? "JEE Mains 2026" : "JEE Advanced 2026"} paper...`);
+    }
+  }, []);
+
   const handlePreTestStart = (config: PreTestConfig) => {
     setPreTestConfig(config);
     setLoading(true);
@@ -37,6 +58,11 @@ const TestPage = () => {
       try {
         // Build edge function request body
         const requestBody: any = { level: preTestConfig.level, includeInteger: preTestConfig.includeInteger ?? true };
+
+        // If exam mode, pass it directly
+        if (preTestConfig.examMode) {
+          requestBody.examMode = preTestConfig.examMode;
+        }
 
         if (preTestConfig.selections && preTestConfig.selections.length > 0) {
           requestBody.selections = preTestConfig.selections.map((sel) => ({
