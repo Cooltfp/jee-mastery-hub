@@ -603,6 +603,27 @@ export default function PreTestDialog({
         <div>
           <h2 className="text-lg font-bold tracking-tight mb-3">Choose Level</h2>
           <div className="space-y-2">
+            {/* Random level tile */}
+            <button
+              onClick={() => setSelectedLevel("random")}
+              className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-200 active:scale-[0.99] ${
+                selectedLevel === "random"
+                  ? "border-accent bg-accent/5 shadow-sm"
+                  : "border-border hover:border-muted-foreground/30"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  selectedLevel === "random" ? "bg-accent text-accent-foreground" : "bg-secondary text-foreground"
+                }`}>
+                  <Shuffle className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-sm">Random</span>
+                  <span className="text-xs text-muted-foreground ml-2">Surprise me — picks a level from 1–5</span>
+                </div>
+              </div>
+            </button>
             {LEVELS.map((lvl) => {
               const Icon = levelIcons[lvl.id - 1];
               const selected = selectedLevel === lvl.id;
@@ -646,27 +667,33 @@ export default function PreTestDialog({
             </button>
             {showAdvanced && (
               <div className="mt-2 space-y-2 bg-secondary/30 rounded-xl p-3">
-                {Array.from(selectedSubjects).map((subj) => {
-                  const info = SUBJECT_INFO.find((s) => s.key === subj)!;
-                  const rec = recommendations[subj];
-                  return (
-                    <div key={subj} className="flex items-center gap-3 text-sm">
-                      <span className="w-24">{info.label}</span>
-                      <select
-                        value={perSubjectLevels[subj] || selectedLevel}
-                        onChange={(e) =>
-                          setPerSubjectLevels((prev) => ({ ...prev, [subj]: Number(e.target.value) }))
-                        }
-                        className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
-                      >
-                        {LEVELS.map((l) => (
-                          <option key={l.id} value={l.id}>Level {l.id} — {l.name}</option>
-                        ))}
-                      </select>
-                      {rec && <span className="text-xs text-accent whitespace-nowrap">⭐ {rec}</span>}
-                    </div>
-                  );
-                })}
+                {selectedLevel === "random" ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    Per-subject levels are not available in Random mode — a level will be picked randomly at start.
+                  </p>
+                ) : (
+                  Array.from(selectedSubjects).map((subj) => {
+                    const info = SUBJECT_INFO.find((s) => s.key === subj)!;
+                    const rec = recommendations[subj];
+                    return (
+                      <div key={subj} className="flex items-center gap-3 text-sm">
+                        <span className="w-24">{info.label}</span>
+                        <select
+                          value={perSubjectLevels[subj] || (typeof selectedLevel === "number" ? selectedLevel : 3)}
+                          onChange={(e) =>
+                            setPerSubjectLevels((prev) => ({ ...prev, [subj]: Number(e.target.value) }))
+                          }
+                          className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
+                        >
+                          {LEVELS.map((l) => (
+                            <option key={l.id} value={l.id}>Level {l.id} — {l.name}</option>
+                          ))}
+                        </select>
+                        {rec && <span className="text-xs text-accent whitespace-nowrap">⭐ {rec}</span>}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             )}
           </div>
