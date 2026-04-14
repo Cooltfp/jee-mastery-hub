@@ -724,11 +724,11 @@ export default function PreTestDialog({
         </div>
 
         {/* Integer Type Toggle */}
-        {selectedLevel >= 3 && (
+        {(selectedLevel === "random" || selectedLevel >= 3) && (
           <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-secondary/30">
             <div>
               <div className="font-semibold text-sm">Include Integer Type Questions</div>
-              <div className="text-xs text-muted-foreground">Answer is a non-negative integer (0–9), no negative marking</div>
+              <div className="text-xs text-muted-foreground">Answer is any positive integer, +4/-1 marking</div>
             </div>
             <button
               onClick={() => setIncludeInteger(!includeInteger)}
@@ -755,19 +755,22 @@ export default function PreTestDialog({
             disabled={!confidence}
             onClick={() => {
               if (!confidence) return;
-              const selections = buildSelections();
+              const resolvedLevel = selectedLevel === "random"
+                ? Math.floor(Math.random() * 5) + 1
+                : selectedLevel;
+              const selections = buildSelections(resolvedLevel);
               let chapterName: string | null = null;
               if (selections.length === 1 && selections[0].chapters.length === 1) {
                 chapterName = selections[0].chapters[0];
               }
               onStart({
-                level: selectedLevel,
+                level: resolvedLevel,
                 confidence,
                 chapterName,
                 selections,
                 totalTimerMinutes: totalTimer,
                 totalQuestions,
-                includeInteger: selectedLevel >= 3 ? includeInteger : false,
+                includeInteger: resolvedLevel >= 3 ? includeInteger : false,
               });
             }}
             className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-transform"
