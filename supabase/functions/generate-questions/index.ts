@@ -23,7 +23,7 @@ function parsePlainTextQuestions(raw: string): any[] {
       if (!content || !content.trim()) continue;
 
       const getField = (name: string): string => {
-        const regex = new RegExp(`^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|TYPE|DIFFICULTY|SOURCE|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`, "ms");
+        const regex = new RegExp(`^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|SECTION|PARAGRAPH_ID|PARAGRAPH|TYPE|DIFFICULTY|SOURCE|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`, "ms");
         const match = content.match(regex);
         return match ? match[1].trim() : "";
       };
@@ -40,14 +40,16 @@ function parsePlainTextQuestions(raw: string): any[] {
       const type = (getField("TYPE") || "mcq").toLowerCase().trim();
       const correctRaw = getField("CORRECT").toUpperCase().trim();
       const correctMap: Record<string, string> = { A: "a", B: "b", C: "c", D: "d" };
-      const correctAnswer = correctMap[correctRaw] || correctRaw.toLowerCase();
+      const correctAnswer = type === "multiple_correct"
+        ? correctRaw.split(",").map(c => correctMap[c.trim()] || c.trim().toLowerCase()).join(",")
+        : correctMap[correctRaw] || correctRaw.toLowerCase();
 
       const optA = getField("OPTION_A");
       const optB = getField("OPTION_B");
       const optC = getField("OPTION_C");
       const optD = getField("OPTION_D");
 
-      const options = (type === "mcq") && (optA || optB || optC || optD)
+      const options = (type === "mcq" || type === "multiple_correct" || type === "comprehension") && (optA || optB || optC || optD)
         ? [
             { id: "a", text: optA },
             { id: "b", text: optB },
@@ -66,8 +68,11 @@ function parsePlainTextQuestions(raw: string): any[] {
         explanation: getField("SOLUTION"),
         topic: getField("CHAPTER") || "General",
         source: getField("SOURCE") || "Original",
-        marks: 4,
-        negativeMarks: (type === "numerical" || type === "integer") ? 0 : 1,
+        section: getField("SECTION") || "",
+        paragraphId: getField("PARAGRAPH_ID") || "",
+        paragraph: getField("PARAGRAPH") || "",
+        marks: type === "multiple_correct" ? 4 : type === "comprehension" ? 3 : 4,
+        negativeMarks: type === "integer" ? 1 : type === "numerical" ? 0 : type === "multiple_correct" ? 2 : type === "comprehension" ? 1 : 1,
       });
     } catch (e) {
       console.error("Failed to parse question block:", e);
@@ -87,6 +92,7 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const globalLevel = Math.min(5, Math.max(1, body.level || 3));
     const includeInteger = body.includeInteger !== false;
+    const examMode: string | null = body.examMode || null;
 
     const varietySeeds = [
       "Focus on conceptual traps and common misconceptions students fall for.",
@@ -102,6 +108,145 @@ serve(async (req) => {
     const pickedYear2 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
     const varietySeed = varietySeeds[Math.floor(Math.random() * varietySeeds.length)];
 
+    // ─── Exam presets ───────────────────────────────────────────
+    const EXAM_PRESETS: Record<string, { totalQuestions: number; systemPrompt: string }> = {
+      jee_mains_2026: {
+        totalQuestions: 75,
+        systemPrompt: `You are setting the JEE Mains 2026 paper. Generate exactly 75 questions — 25 Physics, 25 Chemistry, 25 Mathematics.
+
+For each subject, generate:
+- 20 MCQ questions (4 options, single correct, +4/-1 marking)
+- 5 Integer type questions (answer is any positive integer, +4/-1 marking, no options needed)
+
+Difficulty: Mix of JEE Mains upper-bracket difficulty. 20% easy, 50% medium, 30% hard. Questions must be of genuine JEE Mains 2026 standard — no trivial substitutions. Include concepts from both Class 11 and Class 12 syllabus.
+
+VARIETY DIRECTIVE: ${varietySeed}
+
+RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS.
+
+For each question use exactly:
+
+===QUESTION===
+ID: (number 1–75)
+SUBJECT: (Physics or Chemistry or Mathematics)
+CHAPTER: (chapter name)
+TYPE: (mcq or integer)
+DIFFICULTY: (easy, medium, or hard)
+TEXT: (question text with LaTeX in dollar signs)
+OPTION_A: (option or "Integer Answer" for integer type)
+OPTION_B: (option or "Integer Answer" for integer type)
+OPTION_C: (option or "Integer Answer" for integer type)
+OPTION_D: (option or "Integer Answer" for integer type)
+CORRECT: (A, B, C, D for MCQ — or the integer value for integer type)
+SOLUTION: (step by step solution with LaTeX in dollar signs)
+===END===
+
+CRITICAL LaTeX RULES:
+- ALL math in dollar signs: $\\frac{a}{b}$, $\\sqrt{3}$, $\\lambda$, $\\epsilon_0$
+- Use backslashes: $\\alpha$, $\\beta$, $\\omega$, $\\times$, $\\pm$
+- NEVER write bare LaTeX without $ delimiters
+
+Order: Questions 1–25 Physics, 26–50 Chemistry, 51–75 Mathematics.
+Within each subject: questions 1–20 are MCQ, questions 21–25 are Integer type.
+Start immediately with ===QUESTION=== — no preamble.`,
+      },
+
+      jee_advanced_2026: {
+        totalQuestions: 54,
+        systemPrompt: `You are setting the JEE Advanced 2026 Paper. Generate exactly 54 questions — 18 Physics, 18 Chemistry, 18 Mathematics.
+
+For each subject (18 questions), use this section structure:
+
+SECTION 1 — Multiple Correct MCQ (6 questions):
+- Each question has 4 options, ONE OR MORE correct answers
+- Marking: +4 if all correct options marked, partial credit +1 per correct option marked (max +4), -2 for wrong combination
+- TYPE: multiple_correct
+
+SECTION 2 — Comprehension / Paragraph Based (8 questions = 4 paragraphs × 2 questions each):
+- Each paragraph is ~3–4 lines describing a scenario/experiment/setup
+- 2 MCQ questions follow each paragraph (single correct each)
+- Marking: +3/-1
+- TYPE: comprehension
+- Add a PARAGRAPH field with the passage text, and PARAGRAPH_ID (e.g. P1, P2...) to group the 2 questions of each paragraph
+
+SECTION 3 — Integer type (4 questions):
+- Answer is any positive integer
+- Marking: +4/-1, no options
+- TYPE: integer
+
+Difficulty: Full JEE Advanced 2026 standard. All questions hard. Multi-concept, counterintuitive, requires deep mastery. No straightforward calculations.
+
+VARIETY DIRECTIVE: ${varietySeed}
+
+RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS.
+
+===QUESTION===
+ID: (number 1–54)
+SUBJECT: (Physics or Chemistry or Mathematics)
+CHAPTER: (chapter name)
+SECTION: (1 or 2 or 3)
+TYPE: (multiple_correct or comprehension or integer)
+PARAGRAPH_ID: (P1/P2/P3/P4 — only for comprehension type, else leave blank)
+PARAGRAPH: (paragraph text — only for first question of each paragraph pair, else leave blank)
+DIFFICULTY: hard
+TEXT: (question text with LaTeX in dollar signs)
+OPTION_A: (option or "Integer Answer")
+OPTION_B: (option or "Integer Answer")
+OPTION_C: (option or "Integer Answer")
+OPTION_D: (option or "Integer Answer")
+CORRECT: (for multiple_correct: comma-separated like "A,C" — for comprehension: A/B/C/D — for integer: the integer value)
+SOLUTION: (full step-by-step solution with LaTeX)
+===END===
+
+CRITICAL LaTeX RULES:
+- ALL math in dollar signs: $\\frac{a}{b}$, $\\sqrt{3}$, $\\lambda$, $\\epsilon_0$
+- Use backslashes: $\\alpha$, $\\beta$, $\\omega$, $\\times$, $\\pm$
+
+Order: Questions 1–18 Physics, 19–36 Chemistry, 37–54 Mathematics.
+Within each subject: questions 1–6 multiple_correct, 7–14 comprehension (4 paragraphs × 2), 15–18 integer.
+Start immediately with ===QUESTION=== — no preamble.`,
+      },
+    };
+
+    // ─── Handle exam mode ───────────────────────────────────────
+    if (examMode && EXAM_PRESETS[examMode]) {
+      const preset = EXAM_PRESETS[examMode];
+
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: preset.systemPrompt },
+            { role: "user", content: `Generate exactly ${preset.totalQuestions} questions now. Start with ===QUESTION===` },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limited. Please try again." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        if (response.status === 402) return new Response(JSON.stringify({ error: "Credits exhausted." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        throw new Error(`AI gateway error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const rawText = data.choices?.[0]?.message?.content || "";
+      console.log("Exam mode raw response length:", rawText.length);
+      const questions = parsePlainTextQuestions(rawText);
+      console.log("Exam mode parsed questions:", questions.length);
+
+      if (questions.length === 0) {
+        return new Response(JSON.stringify({ error: "AI formatting error, please try again" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      return new Response(JSON.stringify({ questions }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // ─── Regular question generation ────────────────────────────
     let totalQuestions = 30;
     let subjectInstructions = "";
     let topicHints = "";
@@ -148,7 +293,7 @@ serve(async (req) => {
     const pyqCount = globalLevel >= 3 ? Math.ceil(totalQuestions * 0.25) : Math.ceil(totalQuestions * 0.10);
 
     const integerInstructions = integerCount > 0
-      ? `\n- ${integerCount} of the non-MCQ questions must be Integer type (TYPE: integer). Answer must be a non-negative integer between 0 and 9. OPTION_A through OPTION_D say "Integer Answer". CORRECT is the integer value. No negative marking. At least 1 integer type question per subject when total questions allow it.
+      ? `\n- ${integerCount} of the non-MCQ questions must be Integer type (TYPE: integer). Answer is any POSITIVE INTEGER (not limited to 0-9, can be any whole number like 12, 48, 100, etc.). For Physical Chemistry problems, answer may be the nearest integer of a calculated value. OPTION_A through OPTION_D say "Integer Answer". CORRECT is the integer value. Marking: +4 for correct, -1 for wrong. At least 1 integer type question per subject when total questions allow it.
 - The remaining ${pureNumericalCount} non-MCQ questions are Numerical type (TYPE: numerical). Answer is any real number (decimals allowed). OPTION_A through OPTION_D say "Numerical Answer". CORRECT is the decimal value.`
       : `\n- For Numerical questions: OPTION_A through OPTION_D should say "Numerical Answer" and CORRECT should be the numerical value.`;
 
