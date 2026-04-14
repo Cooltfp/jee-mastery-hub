@@ -1,10 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Brain, BarChart3, MessageCircle, ChevronRight, Atom, FlaskConical, Calculator, Clock } from "lucide-react";
+import { BookOpen, Brain, BarChart3, MessageCircle, ChevronRight, Atom, FlaskConical, Calculator, Clock, FileText, Zap } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 const Index = () => {
   const navigate = useNavigate();
+
+  const handleStartExam = (examMode: string) => {
+    sessionStorage.setItem("examMode", examMode);
+    navigate("/test");
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,6 +108,33 @@ const Index = () => {
               questions={5}
             />
           </ScrollReveal>
+        </div>
+      </section>
+
+      {/* Full Mock Papers */}
+      <section className="pb-16 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="mt-6 border-t pt-5">
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Full Mock Papers</div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => handleStartExam("jee_mains_2026")}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-md"
+              >
+                <FileText className="w-4 h-4" />
+                JEE Mains 2026
+                <span className="text-xs opacity-75 ml-1">75 Qs · 3hrs</span>
+              </button>
+              <button
+                onClick={() => handleStartExam("jee_advanced_2026")}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm transition-colors shadow-md"
+              >
+                <Zap className="w-4 h-4" />
+                JEE Advanced 2026
+                <span className="text-xs opacity-75 ml-1">54 Qs · 3hrs</span>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
