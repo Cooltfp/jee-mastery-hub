@@ -461,6 +461,33 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
         </div>
       </header>
 
+      {/* Section tabs */}
+      <div className="flex border-b bg-card">
+        {(["physics", "chemistry", "math"] as const).map((subj) => {
+          const firstIdx = questions.findIndex(q => q.subject === subj);
+          if (firstIdx === -1) return null;
+          const subjectLabels: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
+          const isActive = questions[currentIndex]?.subject === subj;
+          const subjectCounts = questions.filter(q => q.subject === subj);
+          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "multiple_correct" || q.type === "comprehension").length;
+          const intCount = subjectCounts.filter(q => q.type === "integer" || q.type === "numerical").length;
+          return (
+            <button
+              key={subj}
+              onClick={() => goTo(firstIdx)}
+              className={`flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2 ${
+                isActive
+                  ? "border-accent text-accent"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {subjectLabels[subj]}
+              <span className="block text-[10px] font-normal opacity-70 mt-0.5">{mcqCount} MCQ · {intCount} Int</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         {/* Main question area */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
