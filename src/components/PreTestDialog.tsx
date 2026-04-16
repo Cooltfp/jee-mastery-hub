@@ -40,6 +40,7 @@ export interface PreTestConfig {
   totalQuestions: number;
   includeInteger: boolean;
   examMode?: string | null;
+  examDifficulty?: string | null;
 }
 
 const SUBJECT_INFO = [
