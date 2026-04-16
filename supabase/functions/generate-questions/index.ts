@@ -82,43 +82,27 @@ function parsePlainTextQuestions(raw: string): any[] {
   return questions;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+function getExamPreset(examMode: string, difficulty: string, varietySeed: string): { totalQuestions: number; systemPrompt: string } | null {
+  const difficultyOverrideMains = `
+DIFFICULTY OVERRIDE: The overall paper difficulty is "${difficulty}". Apply this globally:
+- easy: 50% easy, 40% medium, 10% hard questions
+- medium: 20% easy, 50% medium, 30% hard questions
+- hard: 5% easy, 25% medium, 70% hard questions`;
 
-  try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+  const difficultyOverrideAdvanced = `
+DIFFICULTY OVERRIDE: Paper difficulty is "${difficulty}". easy = slightly less tricky multi-concepts, medium = standard JEE Advanced, hard = extremely counterintuitive and multi-layered.`;
 
-    const body = await req.json().catch(() => ({}));
-    const globalLevel = Math.min(5, Math.max(1, body.level || 3));
-    const includeInteger = body.includeInteger !== false;
-    const examMode: string | null = body.examMode || null;
-
-    const varietySeeds = [
-      "Focus on conceptual traps and common misconceptions students fall for.",
-      "Focus on data interpretation and graph-based reasoning.",
-      "Focus on multi-step derivations and proof-based reasoning.",
-      "Focus on real-world application and unit analysis problems.",
-      "Focus on problems where eliminating wrong options by logic is key.",
-      "Focus on mixed formula application across sub-topics.",
-      "Focus on problems involving approximations and limiting cases.",
-    ];
-    const pyqYears = [2019, 2020, 2021, 2022, 2023, 2024];
-    const pickedYear1 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
-    const pickedYear2 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
-    const varietySeed = varietySeeds[Math.floor(Math.random() * varietySeeds.length)];
-
-    // ─── Exam presets ───────────────────────────────────────────
-    const EXAM_PRESETS: Record<string, { totalQuestions: number; systemPrompt: string }> = {
-      jee_mains_2026: {
-        totalQuestions: 75,
-        systemPrompt: `You are setting the JEE Mains 2026 paper. Generate exactly 75 questions — 25 Physics, 25 Chemistry, 25 Mathematics.
+  if (examMode === "jee_mains_2026") {
+    return {
+      totalQuestions: 75,
+      systemPrompt: `You are setting the JEE Mains 2026 paper. Generate exactly 75 questions — 25 Physics, 25 Chemistry, 25 Mathematics.
 
 For each subject, generate:
 - 20 MCQ questions (4 options, single correct, +4/-1 marking)
 - 5 Integer type questions (answer is any positive integer, +4/-1 marking, no options needed)
 
-Difficulty: Mix of JEE Mains upper-bracket difficulty. 20% easy, 50% medium, 30% hard. Questions must be of genuine JEE Mains 2026 standard — no trivial substitutions. Include concepts from both Class 11 and Class 12 syllabus.
+Difficulty: Mix of JEE Mains upper-bracket difficulty. Questions must be of genuine JEE Mains 2026 standard — no trivial substitutions. Include concepts from both Class 11 and Class 12 syllabus.
+${difficultyOverrideMains}
 
 VARIETY DIRECTIVE: ${varietySeed}
 
@@ -149,11 +133,13 @@ CRITICAL LaTeX RULES:
 Order: Questions 1–25 Physics, 26–50 Chemistry, 51–75 Mathematics.
 Within each subject: questions 1–20 are MCQ, questions 21–25 are Integer type.
 Start immediately with ===QUESTION=== — no preamble.`,
-      },
+    };
+  }
 
-      jee_advanced_2026: {
-        totalQuestions: 54,
-        systemPrompt: `You are setting the JEE Advanced 2026 Paper. Generate exactly 54 questions — 18 Physics, 18 Chemistry, 18 Mathematics.
+  if (examMode === "jee_advanced_2026") {
+    return {
+      totalQuestions: 54,
+      systemPrompt: `You are setting the JEE Advanced 2026 Paper. Generate exactly 54 questions — 18 Physics, 18 Chemistry, 18 Mathematics.
 
 For each subject (18 questions), use this section structure:
 
@@ -174,7 +160,8 @@ SECTION 3 — Integer type (4 questions):
 - Marking: +4/-1, no options
 - TYPE: integer
 
-Difficulty: Full JEE Advanced 2026 standard. All questions hard. Multi-concept, counterintuitive, requires deep mastery. No straightforward calculations.
+Difficulty: Full JEE Advanced 2026 standard. Multi-concept, counterintuitive, requires deep mastery. No straightforward calculations.
+${difficultyOverrideAdvanced}
 
 VARIETY DIRECTIVE: ${varietySeed}
 
@@ -205,45 +192,76 @@ CRITICAL LaTeX RULES:
 Order: Questions 1–18 Physics, 19–36 Chemistry, 37–54 Mathematics.
 Within each subject: questions 1–6 multiple_correct, 7–14 comprehension (4 paragraphs × 2), 15–18 integer.
 Start immediately with ===QUESTION=== — no preamble.`,
-      },
     };
+  }
+
+  return null;
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    const body = await req.json().catch(() => ({}));
+    const globalLevel = Math.min(5, Math.max(1, body.level || 3));
+    const includeInteger = body.includeInteger !== false;
+    const examMode: string | null = body.examMode || null;
+    const examDifficulty: string = body.difficulty || "medium";
+
+    const varietySeeds = [
+      "Focus on conceptual traps and common misconceptions students fall for.",
+      "Focus on data interpretation and graph-based reasoning.",
+      "Focus on multi-step derivations and proof-based reasoning.",
+      "Focus on real-world application and unit analysis problems.",
+      "Focus on problems where eliminating wrong options by logic is key.",
+      "Focus on mixed formula application across sub-topics.",
+      "Focus on problems involving approximations and limiting cases.",
+    ];
+    const pyqYears = [2019, 2020, 2021, 2022, 2023, 2024];
+    const pickedYear1 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
+    const pickedYear2 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
+    const varietySeed = varietySeeds[Math.floor(Math.random() * varietySeeds.length)];
 
     // ─── Handle exam mode ───────────────────────────────────────
-    if (examMode && EXAM_PRESETS[examMode]) {
-      const preset = EXAM_PRESETS[examMode];
+    if (examMode) {
+      const preset = getExamPreset(examMode, examDifficulty, varietySeed);
+      if (preset) {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: preset.systemPrompt },
+              { role: "user", content: `Generate exactly ${preset.totalQuestions} questions now. Start with ===QUESTION===` },
+            ],
+          }),
+        });
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: preset.systemPrompt },
-            { role: "user", content: `Generate exactly ${preset.totalQuestions} questions now. Start with ===QUESTION===` },
-          ],
-        }),
-      });
+        if (!response.ok) {
+          if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limited. Please try again." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          if (response.status === 402) return new Response(JSON.stringify({ error: "Credits exhausted." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          throw new Error(`AI gateway error: ${response.status}`);
+        }
 
-      if (!response.ok) {
-        if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limited. Please try again." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        if (response.status === 402) return new Response(JSON.stringify({ error: "Credits exhausted." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        throw new Error(`AI gateway error: ${response.status}`);
+        const data = await response.json();
+        const rawText = data.choices?.[0]?.message?.content || "";
+        console.log("Exam mode raw response length:", rawText.length);
+        const questions = parsePlainTextQuestions(rawText);
+        console.log("Exam mode parsed questions:", questions.length);
+
+        if (questions.length === 0) {
+          return new Response(JSON.stringify({ error: "AI formatting error, please try again" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        return new Response(JSON.stringify({ questions }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-
-      const data = await response.json();
-      const rawText = data.choices?.[0]?.message?.content || "";
-      console.log("Exam mode raw response length:", rawText.length);
-      const questions = parsePlainTextQuestions(rawText);
-      console.log("Exam mode parsed questions:", questions.length);
-
-      if (questions.length === 0) {
-        return new Response(JSON.stringify({ error: "AI formatting error, please try again" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-
-      return new Response(JSON.stringify({ questions }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // ─── Regular question generation ────────────────────────────
@@ -329,37 +347,17 @@ OPTION_A: (option with LaTeX in dollar signs)
 OPTION_B: (option with LaTeX in dollar signs)
 OPTION_C: (option with LaTeX in dollar signs)
 OPTION_D: (option with LaTeX in dollar signs)
-CORRECT: (A or B or C or D, or numerical value for numerical type, or integer 0-9 for integer type)
-SOLUTION: (step by step explanation with LaTeX in dollar signs)
+CORRECT: (A, B, C, or D for MCQ — or the numerical/integer value)
+SOLUTION: (step by step solution with LaTeX in dollar signs)
 ===END===
 
 CRITICAL LaTeX RULES:
-- ALL math expressions MUST be wrapped in dollar signs: $\\frac{a}{b}$ for inline
-- Use proper LaTeX commands with backslashes: $\\frac{1}{2}$, $\\sqrt{3}$, $\\lambda$, $\\epsilon_0$, $\\alpha$, $\\theta$, $\\mu$
-- Subscripts: $v_0$, $\\rho_0$. Superscripts: $x^2$, $e^{-x}$
-- Greek letters: $\\alpha$, $\\beta$, $\\gamma$, $\\delta$, $\\omega$, $\\pi$, $\\phi$
-- Operators: $\\times$, $\\div$, $\\pm$, $\\leq$, $\\geq$, $\\neq$, $\\approx$
-- Integrals: $\\int_0^1 x^2 \\, dx$
-- NEVER write bare commands without backslashes
+- ALL math expressions MUST be wrapped in dollar signs: $\\frac{a}{b}$, $\\sqrt{3}$, $\\lambda$, $\\epsilon_0$
+- Use proper backslash commands: $\\alpha$, $\\beta$, $\\omega$, $\\times$, $\\pm$
+- NEVER write bare LaTeX without $ delimiters
+- For display math, use $$...$$
 
-EXAMPLE (PYQ style):
-===QUESTION===
-ID: 1
-SUBJECT: Physics
-CHAPTER: Electrostatics
-TYPE: mcq
-DIFFICULTY: medium
-SOURCE: JEE Mains 2022
-TEXT: The electric field at distance $r$ from an infinite line charge with linear charge density $\\lambda$ is:
-OPTION_A: $\\frac{\\lambda}{2\\pi\\epsilon_0 r}$
-OPTION_B: $\\frac{\\lambda}{4\\pi\\epsilon_0 r^2}$
-OPTION_C: $\\frac{\\lambda}{2\\pi\\epsilon_0 r^2}$
-OPTION_D: $\\frac{\\lambda r}{4\\pi\\epsilon_0}$
-CORRECT: A
-SOLUTION: Using Gauss's law with a cylindrical Gaussian surface, $E \\cdot 2\\pi r L = \\frac{\\lambda L}{\\epsilon_0}$, giving $E = \\frac{\\lambda}{2\\pi\\epsilon_0 r}$.
-===END===
-
-Now generate exactly ${totalQuestions} questions. Start immediately with ===QUESTION=== — no preamble.`;
+Start immediately with ===QUESTION=== — no preamble, no commentary.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -371,51 +369,40 @@ Now generate exactly ${totalQuestions} questions. Start immediately with ===QUES
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate ${totalQuestions} JEE Mains questions. Use the exact plain text template. All math in $dollar signs$ with proper \\backslash commands.` },
+          { role: "user", content: `Generate exactly ${totalQuestions} questions now. Start with ===QUESTION===` },
         ],
       }),
     });
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Credits exhausted. Please add funds." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+      if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limited. Please try again in a minute." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (response.status === 402) return new Response(JSON.stringify({ error: "Credits exhausted. Please check your plan." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       throw new Error(`AI gateway error: ${response.status}`);
     }
 
     const data = await response.json();
     const rawText = data.choices?.[0]?.message?.content || "";
-
     console.log("Raw response length:", rawText.length);
-    console.log("First 500 chars:", rawText.substring(0, 500));
 
     const questions = parsePlainTextQuestions(rawText);
-    console.log("Parsed questions count:", questions.length);
+    console.log("Parsed questions:", questions.length);
 
     if (questions.length === 0) {
-      console.error("No questions parsed. Full response:", rawText.substring(0, 2000));
-      return new Response(JSON.stringify({ error: "AI formatting error, please try again" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("No questions parsed. Raw text sample:", rawText.substring(0, 500));
+      return new Response(
+        JSON.stringify({ error: "AI returned incorrectly formatted questions. Please try again." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     return new Response(JSON.stringify({ questions }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
-    console.error("generate-questions error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (err) {
+    console.error("Edge function error:", err);
+    return new Response(
+      JSON.stringify({ error: err.message || "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });

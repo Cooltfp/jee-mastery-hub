@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Clock, ChevronLeft, ChevronRight, Flag, Send, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+const SUBJECT_ORDER = ["physics", "chemistry", "math"] as const;
+const SUBJECT_LABELS: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
+
 const TestPage = () => {
   const navigate = useNavigate();
   const [preTestConfig, setPreTestConfig] = useState<PreTestConfig | null>(null);
@@ -18,6 +21,7 @@ const TestPage = () => {
   const [loadingMessage, setLoadingMessage] = useState("");
   const [dbSessionId, setDbSessionId] = useState<string | null>(null);
   const [dbQuestionIds, setDbQuestionIds] = useState<string[]>([]);
+  const [activeSection, setActiveSection] = useState<string>("physics");
 
   const questionTimerRef = useRef<number>(0);
   const lastTickRef = useRef<number>(Date.now());
@@ -27,6 +31,8 @@ const TestPage = () => {
     const examMode = sessionStorage.getItem("examMode");
     if (examMode) {
       sessionStorage.removeItem("examMode");
+      const examDifficulty = sessionStorage.getItem("examDifficulty") || "medium";
+      sessionStorage.removeItem("examDifficulty");
       const examConfig: PreTestConfig = {
         level: examMode === "jee_advanced_2026" ? 5 : 3,
         confidence: "high",
@@ -36,6 +42,7 @@ const TestPage = () => {
         totalQuestions: examMode === "jee_mains_2026" ? 75 : 54,
         includeInteger: true,
         examMode,
+        examDifficulty,
       };
       setPreTestConfig(examConfig);
       setLoading(true);
@@ -62,6 +69,9 @@ const TestPage = () => {
         // If exam mode, pass it directly
         if (preTestConfig.examMode) {
           requestBody.examMode = preTestConfig.examMode;
+          if (preTestConfig.examDifficulty) {
+            requestBody.difficulty = preTestConfig.examDifficulty;
+          }
         }
 
         if (preTestConfig.selections && preTestConfig.selections.length > 0) {
@@ -89,7 +99,7 @@ const TestPage = () => {
         // Get the list of selected subject keys for filtering
         const selectedSubjectKeys = preTestConfig.selections?.map(s => s.subject) || [];
 
-        const questions: Question[] = data.questions.map((q: any, i: number) => {
+        let questions: Question[] = data.questions.map((q: any, i: number) => {
           // Normalize subject: treat "mathematics", "maths", "math" all as "math"
           let subject = (q.subject || "").toLowerCase().trim();
           if (subject === "mathematics" || subject === "maths") subject = "math";
@@ -108,13 +118,26 @@ const TestPage = () => {
             negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
           };
         }).filter((q: Question) => {
-          // Filter to only selected subjects — if backend returns extra subjects, drop them
           if (selectedSubjectKeys.length === 0) return true;
           return selectedSubjectKeys.includes(q.subject);
         });
 
-        // Re-number IDs after filtering
+        // Sort by subject then type
+        const subjectOrder: Record<string, number> = { physics: 0, chemistry: 1, math: 2 };
+        const typeOrder: Record<string, number> = { mcq: 0, multiple_correct: 0, comprehension: 1, numerical: 2, integer: 3 };
+        questions.sort((a, b) => {
+          const subDiff = (subjectOrder[a.subject] ?? 9) - (subjectOrder[b.subject] ?? 9);
+          if (subDiff !== 0) return subDiff;
+          return (typeOrder[a.type] ?? 5) - (typeOrder[b.type] ?? 5);
+        });
+
+        // Re-number IDs after sort
         questions.forEach((q, i) => { q.id = i + 1; });
+
+        // Set active section to first question's subject
+        if (questions.length > 0) {
+          setActiveSection(questions[0].subject);
+        }
 
         setLoadingMessage("Saving to database...");
 
@@ -198,7 +221,6 @@ const TestPage = () => {
         const { sampleQuestions } = await import("@/data/questions");
         const totalTimeSeconds = (preTestConfig.totalTimerMinutes || 60) * 60;
 
-        // Filter sample questions to selected subjects too
         const selectedSubjectKeys = preTestConfig.selections?.map(s => s.subject) || [];
         const filtered = selectedSubjectKeys.length > 0
           ? sampleQuestions.filter(q => selectedSubjectKeys.includes(q.subject))
@@ -295,6 +317,9 @@ const TestPage = () => {
       if (states[index].status === "not-visited") {
         states[index] = { ...states[index], status: "not-answered" };
       }
+      // Update active section
+      const newSubject = prev.questions[index]?.subject;
+      if (newSubject) setActiveSection(newSubject);
       return { ...prev, currentQuestionIndex: index, questionStates: states };
     });
   }, [saveCurrentQuestionTime, syncResponseToDb]);
@@ -343,7 +368,6 @@ const TestPage = () => {
   const handleSubmit = async () => {
     if (!session) return;
 
-    // Save current question time inline to avoid stale closure
     const finalStates = [...session.questionStates];
     finalStates[session.currentQuestionIndex] = {
       ...finalStates[session.currentQuestionIndex],
@@ -354,26 +378,16 @@ const TestPage = () => {
     const finalSession = { ...session, questionStates: finalStates };
     const result = calculateResults(finalSession);
 
-    // Calculate adaptive recommendation
     const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0;
     const currentLevel = preTestConfig?.level || 3;
-    // Dynamic level recommendation based on actual score
     let recommendedLevel = currentLevel;
-    if (percentage >= 90) {
-      recommendedLevel = Math.min(currentLevel + 1, 5);
-    } else if (percentage >= 80) {
-      recommendedLevel = currentLevel; // solid, stay
-    } else if (percentage >= 60) {
-      recommendedLevel = Math.max(currentLevel - 1, 1);
-    } else if (percentage >= 40) {
-      recommendedLevel = Math.max(Math.min(currentLevel - 2, 2), 1);
-    } else if (percentage >= 20) {
-      recommendedLevel = currentLevel >= 4 ? 1 : Math.max(currentLevel - 2, 1);
-    } else {
-      recommendedLevel = 1; // below 20% → start from basics
-    }
+    if (percentage >= 90) recommendedLevel = Math.min(currentLevel + 1, 5);
+    else if (percentage >= 80) recommendedLevel = currentLevel;
+    else if (percentage >= 60) recommendedLevel = Math.max(currentLevel - 1, 1);
+    else if (percentage >= 40) recommendedLevel = Math.max(Math.min(currentLevel - 2, 2), 1);
+    else if (percentage >= 20) recommendedLevel = currentLevel >= 4 ? 1 : Math.max(currentLevel - 2, 1);
+    else recommendedLevel = 1;
 
-    // Store which subjects were tested for the results page
     const testedSubjects = preTestConfig?.selections?.map((s) => s.subject) || ["physics", "chemistry", "math"];
 
     const enrichedResult = {
@@ -444,23 +458,25 @@ const TestPage = () => {
   const currentQ = session.questions[session.currentQuestionIndex];
   const currentState = session.questionStates[session.currentQuestionIndex];
 
-  const getSubjectQuestions = (subject: string) =>
-    session.questions.reduce<number[]>((acc, q, i) => (q.subject === subject ? [...acc, i] : acc), []);
-
-  // Dynamic: only build palette sections for subjects that have questions
-  const subjectSections: { key: string; label: string; colorClass: string; indices: number[] }[] = [];
-  const physicsQs = getSubjectQuestions("physics");
-  const chemistryQs = getSubjectQuestions("chemistry");
-  const mathQs = getSubjectQuestions("math");
-  if (physicsQs.length > 0) subjectSections.push({ key: "physics", label: "Physics", colorClass: "subject-physics", indices: physicsQs });
-  if (chemistryQs.length > 0) subjectSections.push({ key: "chemistry", label: "Chemistry", colorClass: "subject-chemistry", indices: chemistryQs });
-  if (mathQs.length > 0) subjectSections.push({ key: "math", label: "Mathematics", colorClass: "subject-math", indices: mathQs });
-
   const stats = {
     answered: session.questionStates.filter((s) => s.status === "answered").length,
     notAnswered: session.questionStates.filter((s) => s.status === "not-answered").length,
     marked: session.questionStates.filter((s) => s.status === "marked").length,
     notVisited: session.questionStates.filter((s) => s.status === "not-visited").length,
+  };
+
+  const renderPaletteButton = (q: Question, idx: number) => {
+    const st = session.questionStates[idx];
+    const paletteClass =
+      st.status === "answered" ? "palette-answered" :
+      st.status === "not-answered" ? "palette-not-answered" :
+      st.status === "marked" ? "palette-marked" : "palette-not-visited";
+    return (
+      <button key={idx} onClick={() => goToQuestion(idx)}
+        className={`question-palette-btn ${paletteClass} ${idx === session.currentQuestionIndex ? "palette-current" : ""} active:scale-[0.95] transition-transform`}>
+        {idx + 1}
+      </button>
+    );
   };
 
   return (
@@ -490,6 +506,36 @@ const TestPage = () => {
         </div>
       </header>
 
+      {/* Section tabs */}
+      <div className="flex border-b bg-card">
+        {SUBJECT_ORDER.map((subj) => {
+          const firstIdx = session.questions.findIndex(q => q.subject === subj);
+          if (firstIdx === -1) return null;
+          const isActive = activeSection === subj;
+          const subjectCounts = session.questions.filter(q => q.subject === subj);
+          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "multiple_correct" || q.type === "comprehension").length;
+          const intCount = subjectCounts.filter(q => q.type === "integer" || q.type === "numerical").length;
+          return (
+            <button
+              key={subj}
+              onClick={() => {
+                saveCurrentQuestionTime();
+                goToQuestion(firstIdx);
+                setActiveSection(subj);
+              }}
+              className={`flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2 ${
+                isActive
+                  ? "border-accent text-accent"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {SUBJECT_LABELS[subj]}
+              <span className="block text-[10px] font-normal opacity-70 mt-0.5">{mcqCount} MCQ · {intCount} Int</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-y-auto p-6 lg:p-8">
           <div className="max-w-3xl mx-auto">
@@ -511,6 +557,9 @@ const TestPage = () => {
                 Question {session.currentQuestionIndex + 1}
                 {currentQ.type === "numerical" && (
                   <span className="ml-2 px-2 py-0.5 bg-secondary rounded text-xs">Numerical</span>
+                )}
+                {currentQ.type === "integer" && (
+                  <span className="ml-2 px-2 py-0.5 bg-secondary rounded text-xs">Integer</span>
                 )}
               </div>
               <div className="text-base leading-relaxed">
@@ -578,25 +627,48 @@ const TestPage = () => {
         </main>
 
         <aside className="w-72 border-l bg-card overflow-y-auto p-4 hidden lg:block">
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-success" /> Answered: {stats.answered}</div>
               <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-destructive" /> Not Answered: {stats.notAnswered}</div>
               <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[hsl(var(--physics))]" /> Marked: {stats.marked}</div>
               <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-secondary" /> Not Visited: {stats.notVisited}</div>
             </div>
-            {/* Dynamic: only show palette sections for subjects that have questions */}
-            {subjectSections.map((sec) => (
-              <PaletteSection
-                key={sec.key}
-                title={sec.label}
-                colorClass={sec.colorClass}
-                indices={sec.indices}
-                states={session.questionStates}
-                currentIndex={session.currentQuestionIndex}
-                onSelect={goToQuestion}
-              />
-            ))}
+
+            {/* Grouped palette by subject with MCQ/Integer rows */}
+            {SUBJECT_ORDER.map((subj) => {
+              const subjQuestions = session.questions
+                .map((q, idx) => ({ q, idx }))
+                .filter(({ q }) => q.subject === subj);
+              if (subjQuestions.length === 0) return null;
+
+              const mcqQs = subjQuestions.filter(({ q }) => q.type !== "integer" && q.type !== "numerical");
+              const intQs = subjQuestions.filter(({ q }) => q.type === "integer" || q.type === "numerical");
+
+              return (
+                <div key={subj} className="mb-2">
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    {SUBJECT_LABELS[subj]}
+                  </div>
+                  {mcqQs.length > 0 && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground mb-1">MCQ</div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {mcqQs.map(({ q, idx }) => renderPaletteButton(q, idx))}
+                      </div>
+                    </>
+                  )}
+                  {intQs.length > 0 && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground mb-1">Integer</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {intQs.map(({ q, idx }) => renderPaletteButton(q, idx))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </aside>
       </div>
@@ -623,30 +695,5 @@ const TestPage = () => {
     </div>
   );
 };
-
-function PaletteSection({ title, colorClass, indices, states, currentIndex, onSelect }: {
-  title: string; colorClass: string; indices: number[]; states: QuestionState[]; currentIndex: number; onSelect: (i: number) => void;
-}) {
-  return (
-    <div>
-      <div className={`text-xs font-semibold px-2 py-1 rounded-md mb-2 inline-block ${colorClass}`}>{title}</div>
-      <div className="flex flex-wrap gap-2">
-        {indices.map((idx) => {
-          const st = states[idx];
-          const paletteClass =
-            st.status === "answered" ? "palette-answered" :
-            st.status === "not-answered" ? "palette-not-answered" :
-            st.status === "marked" ? "palette-marked" : "palette-not-visited";
-          return (
-            <button key={idx} onClick={() => onSelect(idx)}
-              className={`question-palette-btn ${paletteClass} ${idx === currentIndex ? "palette-current" : ""} active:scale-[0.95] transition-transform`}>
-              {idx + 1}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 export default TestPage;

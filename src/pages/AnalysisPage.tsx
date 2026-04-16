@@ -461,6 +461,33 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
         </div>
       </header>
 
+      {/* Section tabs */}
+      <div className="flex border-b bg-card">
+        {(["physics", "chemistry", "math"] as const).map((subj) => {
+          const firstIdx = questions.findIndex(q => q.subject === subj);
+          if (firstIdx === -1) return null;
+          const subjectLabels: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
+          const isActive = questions[currentIndex]?.subject === subj;
+          const subjectCounts = questions.filter(q => q.subject === subj);
+          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "multiple_correct" || q.type === "comprehension").length;
+          const intCount = subjectCounts.filter(q => q.type === "integer" || q.type === "numerical").length;
+          return (
+            <button
+              key={subj}
+              onClick={() => goTo(firstIdx)}
+              className={`flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2 ${
+                isActive
+                  ? "border-accent text-accent"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {subjectLabels[subj]}
+              <span className="block text-[10px] font-normal opacity-70 mt-0.5">{mcqCount} MCQ · {intCount} Int</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         {/* Main question area */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -778,27 +805,82 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {questions.map((question, idx) => {
-              const r = responses.get(question.id);
-              const s = getStatus(question, r);
+            {(["physics", "chemistry", "math"] as const).map((subj) => {
+              const subjQuestions = questions
+                .map((q, idx) => ({ q, idx }))
+                .filter(({ q }) => q.subject === subj);
+              if (subjQuestions.length === 0) return null;
+
+              const mcqQs = subjQuestions.filter(({ q }) => q.type !== "integer" && q.type !== "numerical");
+              const intQs = subjQuestions.filter(({ q }) => q.type === "integer" || q.type === "numerical");
+              const subjectLabels: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
+
               return (
-                <button
-                  key={question.id}
-                  onClick={() => goTo(idx)}
-                  className={`w-9 h-9 rounded-lg text-xs font-bold transition-all active:scale-95 border-2 ${
-                    idx === currentIndex
-                      ? "border-accent scale-110 shadow-md"
-                      : "border-transparent"
-                  } ${
-                    s === "correct"
-                      ? "bg-[hsl(var(--success))] text-white"
-                      : s === "wrong"
-                      ? "bg-destructive text-white"
-                      : "bg-secondary text-muted-foreground"
-                  }`}
-                >
-                  {idx + 1}
-                </button>
+                <div key={subj} className="w-full mb-3">
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    {subjectLabels[subj]}
+                  </div>
+                  {mcqQs.length > 0 && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground mb-1">MCQ</div>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {mcqQs.map(({ q: question, idx }) => {
+                          const r = responses.get(question.id);
+                          const s = getStatus(question, r);
+                          return (
+                            <button
+                              key={question.id}
+                              onClick={() => goTo(idx)}
+                              className={`w-9 h-9 rounded-lg text-xs font-bold transition-all active:scale-95 border-2 ${
+                                idx === currentIndex
+                                  ? "border-accent scale-110 shadow-md"
+                                  : "border-transparent"
+                              } ${
+                                s === "correct"
+                                  ? "bg-[hsl(var(--success))] text-white"
+                                  : s === "wrong"
+                                  ? "bg-destructive text-white"
+                                  : "bg-secondary text-muted-foreground"
+                              }`}
+                            >
+                              {idx + 1}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  {intQs.length > 0 && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground mb-1">Integer</div>
+                      <div className="flex flex-wrap gap-2">
+                        {intQs.map(({ q: question, idx }) => {
+                          const r = responses.get(question.id);
+                          const s = getStatus(question, r);
+                          return (
+                            <button
+                              key={question.id}
+                              onClick={() => goTo(idx)}
+                              className={`w-9 h-9 rounded-lg text-xs font-bold transition-all active:scale-95 border-2 ${
+                                idx === currentIndex
+                                  ? "border-accent scale-110 shadow-md"
+                                  : "border-transparent"
+                              } ${
+                                s === "correct"
+                                  ? "bg-[hsl(var(--success))] text-white"
+                                  : s === "wrong"
+                                  ? "bg-destructive text-white"
+                                  : "bg-secondary text-muted-foreground"
+                              }`}
+                            >
+                              {idx + 1}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
               );
             })}
           </div>

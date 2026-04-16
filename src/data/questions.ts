@@ -1,4 +1,4 @@
-export type QuestionType = "mcq" | "numerical";
+export type QuestionType = "mcq" | "numerical" | "integer" | "multiple_correct" | "comprehension";
 export type Subject = "physics" | "chemistry" | "math";
 export type Difficulty = "easy" | "medium" | "hard";
 
