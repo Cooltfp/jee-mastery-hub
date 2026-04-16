@@ -1,13 +1,16 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BookOpen, Brain, BarChart3, MessageCircle, ChevronRight, Atom, FlaskConical, Calculator, Clock, FileText, Zap } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const Index = () => {
   const navigate = useNavigate();
+  const [examDifficultyModal, setExamDifficultyModal] = useState<"jee_mains_2026" | "jee_advanced_2026" | null>(null);
+  const [examDifficulty, setExamDifficulty] = useState<"easy" | "medium" | "hard" | "random">("medium");
 
-  const handleStartExam = (examMode: string) => {
+  const handleStartExam = (examMode: string, difficulty: string) => {
     sessionStorage.setItem("examMode", examMode);
+    sessionStorage.setItem("examDifficulty", difficulty);
     navigate("/test");
   };
 
@@ -118,7 +121,7 @@ const Index = () => {
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Full Mock Papers</div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button
-                onClick={() => handleStartExam("jee_mains_2026")}
+                onClick={() => setExamDifficultyModal("jee_mains_2026")}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors shadow-md"
               >
                 <FileText className="w-4 h-4" />
@@ -126,7 +129,7 @@ const Index = () => {
                 <span className="text-xs opacity-75 ml-1">75 Qs · 3hrs</span>
               </button>
               <button
-                onClick={() => handleStartExam("jee_advanced_2026")}
+                onClick={() => setExamDifficultyModal("jee_advanced_2026")}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm transition-colors shadow-md"
               >
                 <Zap className="w-4 h-4" />
@@ -171,6 +174,65 @@ const Index = () => {
       <footer className="py-8 px-4 text-center text-xs text-muted-foreground">
         Built for JEE aspirants. Keep practicing — your rank depends on it. 🚀
       </footer>
+
+      {/* Difficulty Selection Modal */}
+      {examDifficultyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card rounded-2xl p-6 w-full max-w-sm space-y-5 shadow-2xl">
+            <div>
+              <h2 className="text-lg font-bold">
+                {examDifficultyModal === "jee_mains_2026" ? "JEE Mains 2026" : "JEE Advanced 2026"}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">Choose paper difficulty</p>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { value: "easy", label: "Easy", emoji: "🟢", desc: "Build confidence, more scoring questions" },
+                { value: "medium", label: "Medium", emoji: "🟡", desc: "Standard JEE difficulty, realistic mix" },
+                { value: "hard", label: "Hard", emoji: "🔴", desc: "Tough questions, exam pressure simulation" },
+                { value: "random", label: "Random", emoji: "🎲", desc: "Mixed bag — unpredictable like the real exam" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setExamDifficulty(opt.value as any)}
+                  className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+                    examDifficulty === opt.value
+                      ? "border-accent bg-accent/5"
+                      : "border-border hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{opt.emoji}</span>
+                    <div>
+                      <div className="font-semibold text-sm">{opt.label}</div>
+                      <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setExamDifficultyModal(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                onClick={() => {
+                  const resolvedDifficulty = examDifficulty === "random"
+                    ? (["easy", "medium", "hard"][Math.floor(Math.random() * 3)] as string)
+                    : examDifficulty;
+                  handleStartExam(examDifficultyModal!, resolvedDifficulty);
+                  setExamDifficultyModal(null);
+                }}
+              >
+                Start Paper →
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
