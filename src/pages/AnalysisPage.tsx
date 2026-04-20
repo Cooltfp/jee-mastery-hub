@@ -489,7 +489,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
           const subjectLabels: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
           const isActive = questions[currentIndex]?.subject === subj;
           const subjectCounts = questions.filter(q => q.subject === subj);
-          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "multiple_correct" || q.type === "comprehension").length;
+          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "single_correct" || q.type === "multiple_correct" || q.type === "comprehension").length;
           const intCount = subjectCounts.filter(q => q.type === "integer" || q.type === "numerical").length;
           return (
             <button
