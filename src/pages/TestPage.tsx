@@ -561,8 +561,8 @@ const TestPage = () => {
               </span>
             </div>
 
-            <div className="mb-8">
-              <div className="text-sm font-medium text-muted-foreground mb-2">
+            <div className="mb-8 space-y-3">
+              <div className="text-sm font-medium text-muted-foreground">
                 Question {session.currentQuestionIndex + 1}
                 {currentQ.type === "numerical" && (
                   <span className="ml-2 px-2 py-0.5 bg-secondary rounded text-xs">Numerical</span>
@@ -571,35 +571,80 @@ const TestPage = () => {
                   <span className="ml-2 px-2 py-0.5 bg-secondary rounded text-xs">Integer</span>
                 )}
               </div>
+
+              {currentQ.type === "multiple_correct" && (
+                <div className="text-xs px-2.5 py-1 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 font-medium w-fit">
+                  ✦ Multiple Correct — one or more options may be correct
+                </div>
+              )}
+              {currentQ.type === "single_correct" && (
+                <div className="text-xs px-2.5 py-1 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium w-fit">
+                  Single Correct Choice
+                </div>
+              )}
+              {currentQ.type === "comprehension" && (
+                <div className="text-xs px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-medium w-fit">
+                  📄 Comprehension Based
+                </div>
+              )}
+
+              {(currentQ as any).paragraph && (
+                <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200/50 rounded-lg p-3 text-sm text-foreground/80 leading-relaxed">
+                  <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">📄 Passage</div>
+                  <MathRenderer>{(currentQ as any).paragraph}</MathRenderer>
+                </div>
+              )}
+
               <div className="text-base leading-relaxed">
                 <MathRenderer>{currentQ.text}</MathRenderer>
               </div>
             </div>
 
-            {currentQ.type === "mcq" && currentQ.options ? (
+            {(currentQ.type === "mcq" || currentQ.type === "single_correct" || currentQ.type === "comprehension" || currentQ.type === "multiple_correct") && currentQ.options ? (
               <div className="space-y-3">
-                {currentQ.options.map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => selectAnswer(opt.id)}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-150 active:scale-[0.99] ${
-                      currentState.selectedAnswer === opt.id
-                        ? "border-accent bg-accent/10 shadow-sm"
-                        : "border-border hover:border-muted-foreground/30 hover:shadow-sm"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5 ${
-                        currentState.selectedAnswer === opt.id
-                          ? "bg-accent text-accent-foreground"
-                          : "bg-secondary text-muted-foreground"
-                      }`}>
-                        {opt.id.toUpperCase()}
-                      </span>
-                      <MathRenderer>{opt.text}</MathRenderer>
-                    </div>
-                  </button>
-                ))}
+                {currentQ.options.map((opt) => {
+                  const isMulti = currentQ.type === "multiple_correct";
+                  const selectedSet = new Set(
+                    (currentState.selectedAnswer || "").split(",").map(s => s.trim()).filter(Boolean)
+                  );
+                  const isSelected = isMulti
+                    ? selectedSet.has(opt.id)
+                    : currentState.selectedAnswer === opt.id;
+
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        if (isMulti) {
+                          const next = new Set(selectedSet);
+                          if (next.has(opt.id)) next.delete(opt.id);
+                          else next.add(opt.id);
+                          const sorted = ["a", "b", "c", "d"].filter(x => next.has(x)).join(",");
+                          if (sorted) selectAnswer(sorted);
+                          else clearAnswer();
+                        } else {
+                          selectAnswer(opt.id);
+                        }
+                      }}
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-150 active:scale-[0.99] ${
+                        isSelected
+                          ? "border-accent bg-accent/10 shadow-sm"
+                          : "border-border hover:border-muted-foreground/30 hover:shadow-sm"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className={`w-7 h-7 ${isMulti ? "rounded-md" : "rounded-full"} flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5 ${
+                          isSelected
+                            ? "bg-accent text-accent-foreground"
+                            : "bg-secondary text-muted-foreground"
+                        }`}>
+                          {opt.id.toUpperCase()}
+                        </span>
+                        <MathRenderer>{opt.text}</MathRenderer>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="max-w-xs">
