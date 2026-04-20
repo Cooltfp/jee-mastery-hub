@@ -116,7 +116,10 @@ const TestPage = () => {
             topic: q.topic || q.chapter,
             marks: q.marks || 4,
             negativeMarks: q.negativeMarks ?? (q.type === "numerical" ? 0 : 1),
-          };
+            paragraph: q.paragraph || "",
+            paragraphId: q.paragraphId || "",
+            section: q.section || "",
+          } as any;
         }).filter((q: Question) => {
           if (selectedSubjectKeys.length === 0) return true;
           return selectedSubjectKeys.includes(q.subject);
@@ -166,7 +169,7 @@ const TestPage = () => {
           subject: q.subject as string,
           type: q.type as string,
           difficulty: q.difficulty as string,
-          text: q.text,
+          text: q.text + ((q as any).paragraph ? `\n\n[[PARAGRAPH:${(q as any).paragraphId || ""}]]${(q as any).paragraph}[[/PARAGRAPH]]` : ""),
           options: q.options ? JSON.parse(JSON.stringify(q.options)) : null,
           correct_answer: q.correctAnswer,
           explanation: q.explanation,
