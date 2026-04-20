@@ -35,6 +35,7 @@ interface QuestionData {
   explanation: string;
   marks: number;
   negative_marks: number;
+  paragraph?: string;
 }
 
 interface ResponseData {
@@ -155,10 +156,21 @@ const AnalysisPage = () => {
 
       setSessionData(sessionRes.data as SessionData);
 
-      const qs = (questionsRes.data || []).map((q: any) => ({
-        ...q,
-        options: Array.isArray(q.options) ? q.options : null,
-      }));
+      const qs = (questionsRes.data || []).map((q: any) => {
+        let text = q.text as string;
+        let paragraph: string | undefined;
+        const paraMatch = text.match(/^<<<PARAGRAPH>>>\n([\s\S]*?)\n<<<END_PARAGRAPH>>>\n([\s\S]*)$/);
+        if (paraMatch) {
+          paragraph = paraMatch[1];
+          text = paraMatch[2];
+        }
+        return {
+          ...q,
+          text,
+          paragraph,
+          options: Array.isArray(q.options) ? q.options : null,
+        };
+      });
       setQuestions(qs);
 
       const respMap = new Map<string, ResponseData>();
@@ -179,6 +191,14 @@ const AnalysisPage = () => {
 
   const getStatus = (q: QuestionData, resp: ResponseData | undefined) => {
     if (!resp || resp.status === "not-visited" || !resp.selected_answer) return "unattempted";
+    if (q.type === "multiple_correct") {
+      const selected = new Set(resp.selected_answer.toUpperCase().split(",").map(s => s.trim()).filter(Boolean));
+      const correct = new Set(q.correct_answer.toUpperCase().split(",").map(s => s.trim()).filter(Boolean));
+      const isFullyCorrect =
+        selected.size === correct.size &&
+        [...correct].every(c => selected.has(c));
+      return isFullyCorrect ? "correct" : "wrong";
+    }
     const isCorrect = resp.selected_answer.trim().toUpperCase() === q.correct_answer.trim().toUpperCase();
     return isCorrect ? "correct" : "wrong";
   };
@@ -469,7 +489,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
           const subjectLabels: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
           const isActive = questions[currentIndex]?.subject === subj;
           const subjectCounts = questions.filter(q => q.subject === subj);
-          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "multiple_correct" || q.type === "comprehension").length;
+          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "single_correct" || q.type === "multiple_correct" || q.type === "comprehension").length;
           const intCount = subjectCounts.filter(q => q.type === "integer" || q.type === "numerical").length;
           return (
             <button
@@ -531,13 +551,37 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
             </div>
 
             {/* Question number + text */}
-            <div>
-              <div className="text-xs font-medium text-muted-foreground mb-2">
+            <div className="space-y-3">
+              <div className="text-xs font-medium text-muted-foreground">
                 Question {currentIndex + 1} of {questions.length}
                 {q.type === "numerical" && (
                   <span className="ml-2 px-2 py-0.5 bg-secondary rounded text-xs">Numerical</span>
                 )}
+                {q.type === "integer" && (
+                  <span className="ml-2 px-2 py-0.5 bg-secondary rounded text-xs">Integer</span>
+                )}
               </div>
+              {q.type === "multiple_correct" && (
+                <div className="text-xs px-2.5 py-1 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 font-medium w-fit">
+                  ✦ Multiple Correct — one or more options may be correct
+                </div>
+              )}
+              {q.type === "single_correct" && (
+                <div className="text-xs px-2.5 py-1 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium w-fit">
+                  Single Correct Choice
+                </div>
+              )}
+              {q.type === "comprehension" && (
+                <div className="text-xs px-2.5 py-1 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-medium w-fit">
+                  📄 Comprehension Based
+                </div>
+              )}
+              {q.paragraph && (
+                <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200/50 rounded-lg p-3 text-sm text-foreground/80 leading-relaxed">
+                  <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">📄 Passage</div>
+                  <MathRenderer>{q.paragraph}</MathRenderer>
+                </div>
+              )}
               <div className="text-base leading-relaxed">
                 <MathRenderer>{q.text}</MathRenderer>
               </div>

@@ -23,7 +23,7 @@ function parsePlainTextQuestions(raw: string): any[] {
       if (!content || !content.trim()) continue;
 
       const getField = (name: string): string => {
-        const regex = new RegExp(`^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|SECTION|PARAGRAPH_ID|PARAGRAPH|TYPE|DIFFICULTY|SOURCE|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`, "ms");
+        const regex = new RegExp(`^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|SECTION|PARAGRAPH_ID|PARAGRAPH|TYPE|DIFFICULTY|SOURCE|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS|SINGLE_CORRECT):|===END===|$)`, "ms");
         const match = content.match(regex);
         return match ? match[1].trim() : "";
       };
@@ -49,7 +49,12 @@ function parsePlainTextQuestions(raw: string): any[] {
       const optC = getField("OPTION_C");
       const optD = getField("OPTION_D");
 
-      const options = (type === "mcq" || type === "multiple_correct" || type === "comprehension") && (optA || optB || optC || optD)
+      const options = (
+        type === "mcq" ||
+        type === "single_correct" ||
+        type === "multiple_correct" ||
+        type === "comprehension"
+      ) && (optA || optB || optC || optD)
         ? [
             { id: "a", text: optA },
             { id: "b", text: optB },
@@ -71,8 +76,18 @@ function parsePlainTextQuestions(raw: string): any[] {
         section: getField("SECTION") || "",
         paragraphId: getField("PARAGRAPH_ID") || "",
         paragraph: getField("PARAGRAPH") || "",
-        marks: type === "multiple_correct" ? 4 : type === "comprehension" ? 3 : 4,
-        negativeMarks: type === "integer" ? 1 : type === "numerical" ? 0 : type === "multiple_correct" ? 2 : type === "comprehension" ? 1 : 1,
+        marks:
+          type === "multiple_correct" ? 4 :
+          type === "comprehension" ? 3 :
+          type === "single_correct" ? 3 :
+          4,
+        negativeMarks:
+          type === "integer" ? 1 :
+          type === "numerical" ? 0 :
+          type === "multiple_correct" ? 2 :
+          type === "comprehension" ? 1 :
+          type === "single_correct" ? 1 :
+          1,
       });
     } catch (e) {
       console.error("Failed to parse question block:", e);
@@ -138,59 +153,71 @@ Start immediately with ===QUESTION=== — no preamble.`,
 
   if (examMode === "jee_advanced_2026") {
     return {
-      totalQuestions: 54,
-      systemPrompt: `You are setting the JEE Advanced 2026 Paper. Generate exactly 54 questions — 18 Physics, 18 Chemistry, 18 Mathematics.
+      totalQuestions: 51,
+      systemPrompt: `You are setting JEE Advanced 2026. Generate exactly 51 questions — 17 Physics, 17 Chemistry, 17 Mathematics.
 
-For each subject (18 questions), use this section structure:
+For EACH subject generate exactly these 4 sections:
 
-SECTION 1 — Multiple Correct MCQ (6 questions):
-- Each question has 4 options, ONE OR MORE correct answers
-- Marking: +4 if all correct options marked, partial credit +1 per correct option marked (max +4), -2 for wrong combination
-- TYPE: multiple_correct
-
-SECTION 2 — Comprehension / Paragraph Based (8 questions = 4 paragraphs × 2 questions each):
-- Each paragraph is ~3–4 lines describing a scenario/experiment/setup
-- 2 MCQ questions follow each paragraph (single correct each)
+SECTION 1 — Single Correct Choice (4 questions):
+- 4 options (A/B/C/D), exactly ONE correct
+- TYPE: single_correct
 - Marking: +3/-1
+
+SECTION 2 — Multiple Correct Choice (4 questions):
+- 4 options, ONE OR MORE correct answers (at least 2 questions must have 2+ correct options)
+- TYPE: multiple_correct
+- CORRECT field: comma-separated e.g. "A,C" or "B,C,D"
+- Marking: +4 partial credit, -2 wrong
+
+SECTION 3 — Comprehension / Paragraph (6 questions = 3 paragraphs × 2 questions):
+- Each paragraph: 3–4 lines describing a physics/chemistry/math scenario
+- 2 single-correct MCQ questions follow each paragraph
 - TYPE: comprehension
-- Add a PARAGRAPH field with the passage text, and PARAGRAPH_ID (e.g. P1, P2...) to group the 2 questions of each paragraph
+- PARAGRAPH_ID: P1, P2, P3 (shared between the 2 questions of each paragraph)
+- PARAGRAPH: include paragraph text only on the FIRST question of each pair, leave blank on second
+- Marking: +3/-1
 
-SECTION 3 — Integer type (4 questions):
+SECTION 4 — Integer Type (3 questions):
 - Answer is any positive integer
-- Marking: +4/-1, no options
 - TYPE: integer
+- OPTION_A through OPTION_D: "Integer Answer"
+- Marking: +4/-1
 
-Difficulty: Full JEE Advanced 2026 standard. Multi-concept, counterintuitive, requires deep mastery. No straightforward calculations.
+Difficulty: ${difficulty}. Full JEE Advanced standard — all hard, multi-concept, no trivial calculations.
 ${difficultyOverrideAdvanced}
 
 VARIETY DIRECTIVE: ${varietySeed}
 
-RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS.
+RESPONSE FORMAT — PLAIN TEXT ONLY. NO JSON. NO MARKDOWN CODE BLOCKS.
 
 ===QUESTION===
-ID: (number 1–54)
+ID: (number 1–51)
 SUBJECT: (Physics or Chemistry or Mathematics)
 CHAPTER: (chapter name)
-SECTION: (1 or 2 or 3)
-TYPE: (multiple_correct or comprehension or integer)
-PARAGRAPH_ID: (P1/P2/P3/P4 — only for comprehension type, else leave blank)
-PARAGRAPH: (paragraph text — only for first question of each paragraph pair, else leave blank)
+SECTION: (1, 2, 3, or 4)
+TYPE: (single_correct or multiple_correct or comprehension or integer)
+PARAGRAPH_ID: (P1/P2/P3 only for comprehension, blank otherwise)
+PARAGRAPH: (paragraph text only for first question of each paragraph pair, blank otherwise)
 DIFFICULTY: hard
 TEXT: (question text with LaTeX in dollar signs)
-OPTION_A: (option or "Integer Answer")
-OPTION_B: (option or "Integer Answer")
-OPTION_C: (option or "Integer Answer")
-OPTION_D: (option or "Integer Answer")
-CORRECT: (for multiple_correct: comma-separated like "A,C" — for comprehension: A/B/C/D — for integer: the integer value)
-SOLUTION: (full step-by-step solution with LaTeX)
+OPTION_A: (option text or "Integer Answer")
+OPTION_B: (option text or "Integer Answer")
+OPTION_C: (option text or "Integer Answer")
+OPTION_D: (option text or "Integer Answer")
+CORRECT: (A or B or C or D for single/comprehension — comma-separated like "A,C" for multiple_correct — integer value for integer)
+SOLUTION: (step by step solution with LaTeX in dollar signs)
 ===END===
 
 CRITICAL LaTeX RULES:
 - ALL math in dollar signs: $\\frac{a}{b}$, $\\sqrt{3}$, $\\lambda$, $\\epsilon_0$
 - Use backslashes: $\\alpha$, $\\beta$, $\\omega$, $\\times$, $\\pm$
+- NEVER write bare LaTeX without $ delimiters
 
-Order: Questions 1–18 Physics, 19–36 Chemistry, 37–54 Mathematics.
-Within each subject: questions 1–6 multiple_correct, 7–14 comprehension (4 paragraphs × 2), 15–18 integer.
+ORDER:
+- Questions 1–17: Physics (Q1–4 single_correct, Q5–8 multiple_correct, Q9–14 comprehension, Q15–17 integer)
+- Questions 18–34: Chemistry (same pattern)
+- Questions 35–51: Mathematics (same pattern)
+
 Start immediately with ===QUESTION=== — no preamble.`,
     };
   }
