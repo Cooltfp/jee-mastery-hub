@@ -119,6 +119,14 @@ For each subject, generate:
 - 20 MCQ questions (4 options, single correct, +4/-1 marking)
 - 5 Integer type questions (answer is any positive integer, +4/-1 marking, no options needed)
 
+Distribute the 25 Physics questions across these chapters (pick varied ones each time): Units and Measurements, Kinematics, Laws of Motion, Work Energy and Power, Rotational Motion, Gravitation, Properties of Solids and Liquids, Thermodynamics, Kinetic Theory of Gases, Oscillations and Waves, Electrostatics, Current Electricity, Magnetic Effects of Current and Magnetism, Electromagnetic Induction and Alternating Currents, Optics, Dual Nature of Matter and Radiation, Atoms and Nuclei, Electronic Devices.
+
+Distribute the 25 Chemistry questions across: Some Basic Concepts in Chemistry, Atomic Structure, Chemical Bonding and Molecular Structure, Chemical Thermodynamics, Solutions, Equilibrium, Redox Reactions and Electrochemistry, Chemical Kinetics, p-Block Elements, d and f-Block Elements, Coordination Compounds, Basic Principles of Organic Chemistry, Hydrocarbons, Organic Compounds Containing Oxygen, Organic Compounds Containing Nitrogen, Biomolecules.
+
+Distribute the 25 Mathematics questions across: Complex Numbers and Quadratic Equations, Matrices and Determinants, Permutations and Combinations, Binomial Theorem, Sequences and Series, Limits Continuity and Differentiability, Integral Calculus, Differential Equations, Straight Lines and Coordinate Geometry, Circles and Conic Sections, Three Dimensional Geometry, Vector Algebra, Statistics and Probability, Trigonometry.
+
+Do NOT repeat the same chapter for more than 3 questions in any subject.
+
 Difficulty: Mix of JEE Mains upper-bracket difficulty. Questions must be of genuine JEE Mains 2026 standard — no trivial substitutions. Include concepts from both Class 11 and Class 12 syllabus.
 ${difficultyOverrideMains}
 
@@ -338,7 +346,10 @@ serve(async (req) => {
         subjectInstructions = `IMPORTANT: Generate ALL 30 questions ONLY from the chapter/topic "${chapterName}" at ${levelDesc}. Do not include questions from other chapters.`;
       } else {
         subjectInstructions = `Generate 10 Physics, 10 Chemistry, 10 Mathematics questions at ${levelDesc}.`;
-        topicHints = `TOPICS: Physics (Mechanics, Electrodynamics, Optics, Thermodynamics, Modern Physics, Waves), Chemistry (Physical, Organic, Inorganic, Ionic Equilibrium, Mole Concept, Chemical Bonding), Mathematics (Calculus, Algebra, Coordinate Geometry, Trigonometry, Probability, Vectors)`;
+        topicHints = `TOPICS MUST BE STRICTLY FROM JEE MAIN 2026 OFFICIAL SYLLABUS:
+Physics: Units and Measurements, Kinematics, Laws of Motion, Work Energy and Power, Rotational Motion, Gravitation, Properties of Solids and Liquids, Thermodynamics, Kinetic Theory of Gases, Oscillations and Waves, Electrostatics, Current Electricity, Magnetic Effects of Current and Magnetism, Electromagnetic Induction and Alternating Currents, Electromagnetic Waves, Optics, Dual Nature of Matter and Radiation, Atoms and Nuclei, Electronic Devices
+Chemistry: Some Basic Concepts in Chemistry, Atomic Structure, Chemical Bonding and Molecular Structure, Chemical Thermodynamics, Solutions, Equilibrium, Redox Reactions and Electrochemistry, Chemical Kinetics, Classification of Elements and Periodicity, p-Block Elements, d and f-Block Elements, Coordination Compounds, Basic Principles of Organic Chemistry, Hydrocarbons, Organic Compounds Containing Halogens, Organic Compounds Containing Oxygen, Organic Compounds Containing Nitrogen, Biomolecules
+Mathematics: Sets Relations and Functions, Complex Numbers and Quadratic Equations, Matrices and Determinants, Permutations and Combinations, Binomial Theorem, Sequences and Series, Limits Continuity and Differentiability, Integral Calculus, Differential Equations, Straight Lines and Coordinate Geometry, Circles and Conic Sections, Three Dimensional Geometry, Vector Algebra, Statistics and Probability, Trigonometry`; }
       }
     }
 
