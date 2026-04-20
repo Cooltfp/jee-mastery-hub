@@ -124,7 +124,7 @@ const TestPage = () => {
 
         // Sort by subject then type
         const subjectOrder: Record<string, number> = { physics: 0, chemistry: 1, math: 2 };
-        const typeOrder: Record<string, number> = { mcq: 0, multiple_correct: 0, comprehension: 1, numerical: 2, integer: 3 };
+        const typeOrder: Record<string, number> = { mcq: 0, single_correct: 0, multiple_correct: 1, comprehension: 2, numerical: 3, integer: 4 };
         questions.sort((a, b) => {
           const subDiff = (subjectOrder[a.subject] ?? 9) - (subjectOrder[b.subject] ?? 9);
           if (subDiff !== 0) return subDiff;
