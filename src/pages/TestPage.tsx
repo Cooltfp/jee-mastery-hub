@@ -163,20 +163,26 @@ const TestPage = () => {
         if (sessionError) throw sessionError;
         setDbSessionId(sessionData.id);
 
-        const questionRows = questions.map((q, i) => ({
-          session_id: sessionData.id,
-          question_index: i,
-          subject: q.subject as string,
-          type: q.type as string,
-          difficulty: q.difficulty as string,
-          text: q.text + ((q as any).paragraph ? `\n\n[[PARAGRAPH:${(q as any).paragraphId || ""}]]${(q as any).paragraph}[[/PARAGRAPH]]` : ""),
-          options: q.options ? JSON.parse(JSON.stringify(q.options)) : null,
-          correct_answer: q.correctAnswer,
-          explanation: q.explanation,
-          topic: q.topic,
-          marks: q.marks,
-          negative_marks: q.negativeMarks,
-        }));
+        const questionRows = questions.map((q, i) => {
+          const para = (q as any).paragraph;
+          const textWithPara = para
+            ? `<<<PARAGRAPH>>>\n${para}\n<<<END_PARAGRAPH>>>\n${q.text}`
+            : q.text;
+          return {
+            session_id: sessionData.id,
+            question_index: i,
+            subject: q.subject as string,
+            type: q.type as string,
+            difficulty: q.difficulty as string,
+            text: textWithPara,
+            options: q.options ? JSON.parse(JSON.stringify(q.options)) : null,
+            correct_answer: q.correctAnswer,
+            explanation: q.explanation,
+            topic: q.topic,
+            marks: q.marks,
+            negative_marks: q.negativeMarks,
+          };
+        });
 
         const { data: savedQuestions, error: qError } = await supabase
           .from("questions")
