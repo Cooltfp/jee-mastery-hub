@@ -35,6 +35,7 @@ interface QuestionData {
   explanation: string;
   marks: number;
   negative_marks: number;
+  paragraph?: string;
 }
 
 interface ResponseData {
@@ -155,10 +156,21 @@ const AnalysisPage = () => {
 
       setSessionData(sessionRes.data as SessionData);
 
-      const qs = (questionsRes.data || []).map((q: any) => ({
-        ...q,
-        options: Array.isArray(q.options) ? q.options : null,
-      }));
+      const qs = (questionsRes.data || []).map((q: any) => {
+        let text = q.text as string;
+        let paragraph: string | undefined;
+        const paraMatch = text.match(/^<<<PARAGRAPH>>>\n([\s\S]*?)\n<<<END_PARAGRAPH>>>\n([\s\S]*)$/);
+        if (paraMatch) {
+          paragraph = paraMatch[1];
+          text = paraMatch[2];
+        }
+        return {
+          ...q,
+          text,
+          paragraph,
+          options: Array.isArray(q.options) ? q.options : null,
+        };
+      });
       setQuestions(qs);
 
       const respMap = new Map<string, ResponseData>();
@@ -179,6 +191,14 @@ const AnalysisPage = () => {
 
   const getStatus = (q: QuestionData, resp: ResponseData | undefined) => {
     if (!resp || resp.status === "not-visited" || !resp.selected_answer) return "unattempted";
+    if (q.type === "multiple_correct") {
+      const selected = new Set(resp.selected_answer.toUpperCase().split(",").map(s => s.trim()).filter(Boolean));
+      const correct = new Set(q.correct_answer.toUpperCase().split(",").map(s => s.trim()).filter(Boolean));
+      const isFullyCorrect =
+        selected.size === correct.size &&
+        [...correct].every(c => selected.has(c));
+      return isFullyCorrect ? "correct" : "wrong";
+    }
     const isCorrect = resp.selected_answer.trim().toUpperCase() === q.correct_answer.trim().toUpperCase();
     return isCorrect ? "correct" : "wrong";
   };
