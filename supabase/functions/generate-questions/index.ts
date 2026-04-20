@@ -23,7 +23,10 @@ function parsePlainTextQuestions(raw: string): any[] {
       if (!content || !content.trim()) continue;
 
       const getField = (name: string): string => {
-        const regex = new RegExp(`^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|SECTION|PARAGRAPH_ID|PARAGRAPH|TYPE|DIFFICULTY|SOURCE|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS|SINGLE_CORRECT):|===END===|$)`, "ms");
+        const regex = new RegExp(
+          `^${name}:\\s*(.+?)(?=\\n(?:ID|SUBJECT|CHAPTER|SECTION|TYPE|PARAGRAPH_ID|PARAGRAPH|DIFFICULTY|SOURCE|TEXT|OPTION_A|OPTION_B|OPTION_C|OPTION_D|CORRECT|SOLUTION|MARKS|NEGATIVE_MARKS):|===END===|$)`,
+          "ms"
+        );
         const match = content.match(regex);
         return match ? match[1].trim() : "";
       };
@@ -183,7 +186,15 @@ SECTION 4 — Integer Type (3 questions):
 - OPTION_A through OPTION_D: "Integer Answer"
 - Marking: +4/-1
 
-Difficulty: ${difficulty}. Full JEE Advanced standard — all hard, multi-concept, no trivial calculations.
+DIFFICULTY: ${difficulty === "hard" ? "MAXIMUM difficulty" : difficulty}. All questions must be genuine JEE Advanced standard — counterintuitive, multi-concept, requiring 4–6 reasoning steps. Strictly follow these rules:
+- NEVER ask a question solvable by a single formula substitution
+- NEVER ask a question where the answer is obvious from the stem
+- Single Correct: include questions where 3 options seem plausible — the correct answer requires careful elimination
+- Multiple Correct: at least 2 of the 4 questions must have exactly 2 or 3 correct options (not all 4, not just 1)
+- Comprehension: paragraphs must describe a non-trivial experiment or scenario with numerical data; questions must require reasoning about the paragraph, not just recall
+- Integer: answers must be non-obvious integers (not 1, 2, or 0) — prefer answers in range 6–99
+- Every question must combine at least 2 concepts from the chapter or across chapters
+- Include questions that test limiting behaviour, edge cases, and conceptual traps
 ${difficultyOverrideAdvanced}
 
 VARIETY DIRECTIVE: ${varietySeed}

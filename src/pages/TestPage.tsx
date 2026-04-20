@@ -522,7 +522,9 @@ const TestPage = () => {
           if (firstIdx === -1) return null;
           const isActive = activeSection === subj;
           const subjectCounts = session.questions.filter(q => q.subject === subj);
-          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "multiple_correct" || q.type === "comprehension").length;
+          const singleCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "single_correct").length;
+          const multiCount = subjectCounts.filter(q => q.type === "multiple_correct").length;
+          const compCount = subjectCounts.filter(q => q.type === "comprehension").length;
           const intCount = subjectCounts.filter(q => q.type === "integer" || q.type === "numerical").length;
           return (
             <button
@@ -539,7 +541,9 @@ const TestPage = () => {
               }`}
             >
               {SUBJECT_LABELS[subj]}
-              <span className="block text-[10px] font-normal opacity-70 mt-0.5">{mcqCount} MCQ · {intCount} Int</span>
+              <span className="block text-[10px] font-normal opacity-70 mt-0.5">
+                {singleCount}S · {multiCount}M · {compCount}C · {intCount}Int
+              </span>
             </button>
           );
         })}
@@ -696,19 +700,37 @@ const TestPage = () => {
                 .filter(({ q }) => q.subject === subj);
               if (subjQuestions.length === 0) return null;
 
-              const mcqQs = subjQuestions.filter(({ q }) => q.type !== "integer" && q.type !== "numerical");
+              const singleQs = subjQuestions.filter(({ q }) => q.type === "mcq" || q.type === "single_correct");
+              const multiQs = subjQuestions.filter(({ q }) => q.type === "multiple_correct");
+              const compQs = subjQuestions.filter(({ q }) => q.type === "comprehension");
               const intQs = subjQuestions.filter(({ q }) => q.type === "integer" || q.type === "numerical");
 
               return (
-                <div key={subj} className="mb-2">
+                <div key={subj} className="mb-4">
                   <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
                     {SUBJECT_LABELS[subj]}
                   </div>
-                  {mcqQs.length > 0 && (
+                  {singleQs.length > 0 && (
                     <>
-                      <div className="text-[9px] text-muted-foreground mb-1">MCQ</div>
+                      <div className="text-[9px] text-muted-foreground mb-1">Single Correct</div>
                       <div className="flex flex-wrap gap-1.5 mb-2">
-                        {mcqQs.map(({ q, idx }) => renderPaletteButton(q, idx))}
+                        {singleQs.map(({ q, idx }) => renderPaletteButton(q, idx))}
+                      </div>
+                    </>
+                  )}
+                  {multiQs.length > 0 && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground mb-1">Multiple Correct</div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {multiQs.map(({ q, idx }) => renderPaletteButton(q, idx))}
+                      </div>
+                    </>
+                  )}
+                  {compQs.length > 0 && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground mb-1">Comprehension</div>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {compQs.map(({ q, idx }) => renderPaletteButton(q, idx))}
                       </div>
                     </>
                   )}

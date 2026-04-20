@@ -489,7 +489,9 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
           const subjectLabels: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
           const isActive = questions[currentIndex]?.subject === subj;
           const subjectCounts = questions.filter(q => q.subject === subj);
-          const mcqCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "single_correct" || q.type === "multiple_correct" || q.type === "comprehension").length;
+          const singleCount = subjectCounts.filter(q => q.type === "mcq" || q.type === "single_correct").length;
+          const multiCount = subjectCounts.filter(q => q.type === "multiple_correct").length;
+          const compCount = subjectCounts.filter(q => q.type === "comprehension").length;
           const intCount = subjectCounts.filter(q => q.type === "integer" || q.type === "numerical").length;
           return (
             <button
@@ -502,7 +504,9 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
               }`}
             >
               {subjectLabels[subj]}
-              <span className="block text-[10px] font-normal opacity-70 mt-0.5">{mcqCount} MCQ · {intCount} Int</span>
+              <span className="block text-[10px] font-normal opacity-70 mt-0.5">
+                {singleCount}S · {multiCount}M · {compCount}C · {intCount}Int
+              </span>
             </button>
           );
         })}
@@ -855,42 +859,62 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                 .filter(({ q }) => q.subject === subj);
               if (subjQuestions.length === 0) return null;
 
-              const mcqQs = subjQuestions.filter(({ q }) => q.type !== "integer" && q.type !== "numerical");
-              const intQs = subjQuestions.filter(({ q }) => q.type === "integer" || q.type === "numerical");
               const subjectLabels: Record<string, string> = { physics: "Physics", chemistry: "Chemistry", math: "Mathematics" };
+              const singleQs = subjQuestions.filter(({ q }) => q.type === "mcq" || q.type === "single_correct");
+              const multiQs = subjQuestions.filter(({ q }) => q.type === "multiple_correct");
+              const compQs = subjQuestions.filter(({ q }) => q.type === "comprehension");
+              const intQs = subjQuestions.filter(({ q }) => q.type === "integer" || q.type === "numerical");
+
+              const renderBtn = (question: any, idx: number) => {
+                const r = responses.get(question.id);
+                const s = getStatus(question, r);
+                return (
+                  <button
+                    key={question.id}
+                    onClick={() => goTo(idx)}
+                    className={`w-9 h-9 rounded-lg text-xs font-bold transition-all active:scale-95 border-2 ${
+                      idx === currentIndex
+                        ? "border-accent scale-110 shadow-md"
+                        : "border-transparent"
+                    } ${
+                      s === "correct"
+                        ? "bg-[hsl(var(--success))] text-white"
+                        : s === "wrong"
+                        ? "bg-destructive text-white"
+                        : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              };
 
               return (
-                <div key={subj} className="w-full mb-3">
+                <div key={subj} className="w-full mb-4">
                   <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
                     {subjectLabels[subj]}
                   </div>
-                  {mcqQs.length > 0 && (
+                  {singleQs.length > 0 && (
                     <>
-                      <div className="text-[9px] text-muted-foreground mb-1">MCQ</div>
+                      <div className="text-[9px] text-muted-foreground mb-1">Single Correct</div>
                       <div className="flex flex-wrap gap-2 mb-2">
-                        {mcqQs.map(({ q: question, idx }) => {
-                          const r = responses.get(question.id);
-                          const s = getStatus(question, r);
-                          return (
-                            <button
-                              key={question.id}
-                              onClick={() => goTo(idx)}
-                              className={`w-9 h-9 rounded-lg text-xs font-bold transition-all active:scale-95 border-2 ${
-                                idx === currentIndex
-                                  ? "border-accent scale-110 shadow-md"
-                                  : "border-transparent"
-                              } ${
-                                s === "correct"
-                                  ? "bg-[hsl(var(--success))] text-white"
-                                  : s === "wrong"
-                                  ? "bg-destructive text-white"
-                                  : "bg-secondary text-muted-foreground"
-                              }`}
-                            >
-                              {idx + 1}
-                            </button>
-                          );
-                        })}
+                        {singleQs.map(({ q: question, idx }) => renderBtn(question, idx))}
+                      </div>
+                    </>
+                  )}
+                  {multiQs.length > 0 && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground mb-1">Multiple Correct</div>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {multiQs.map(({ q: question, idx }) => renderBtn(question, idx))}
+                      </div>
+                    </>
+                  )}
+                  {compQs.length > 0 && (
+                    <>
+                      <div className="text-[9px] text-muted-foreground mb-1">Comprehension</div>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {compQs.map(({ q: question, idx }) => renderBtn(question, idx))}
                       </div>
                     </>
                   )}
@@ -898,29 +922,7 @@ Give 2-3 sentences of constructive feedback. If correct: reinforce the concept a
                     <>
                       <div className="text-[9px] text-muted-foreground mb-1">Integer</div>
                       <div className="flex flex-wrap gap-2">
-                        {intQs.map(({ q: question, idx }) => {
-                          const r = responses.get(question.id);
-                          const s = getStatus(question, r);
-                          return (
-                            <button
-                              key={question.id}
-                              onClick={() => goTo(idx)}
-                              className={`w-9 h-9 rounded-lg text-xs font-bold transition-all active:scale-95 border-2 ${
-                                idx === currentIndex
-                                  ? "border-accent scale-110 shadow-md"
-                                  : "border-transparent"
-                              } ${
-                                s === "correct"
-                                  ? "bg-[hsl(var(--success))] text-white"
-                                  : s === "wrong"
-                                  ? "bg-destructive text-white"
-                                  : "bg-secondary text-muted-foreground"
-                              }`}
-                            >
-                              {idx + 1}
-                            </button>
-                          );
-                        })}
+                        {intQs.map(({ q: question, idx }) => renderBtn(question, idx))}
                       </div>
                     </>
                   )}
