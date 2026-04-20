@@ -15,7 +15,7 @@ const LEVEL_DESCRIPTIONS: Record<number, string> = {
 
 function parsePlainTextQuestions(raw: string): any[] {
   const questions: any[] = [];
-  const blocks = raw.split("===QUESTION===").filter(b => b.trim());
+  const blocks = raw.split("===QUESTION===").filter((b) => b.trim());
 
   for (const block of blocks) {
     try {
@@ -44,7 +44,7 @@ function parsePlainTextQuestions(raw: string): any[] {
       const correctRaw = getField("CORRECT").toUpperCase().trim();
       const correctMap: Record<string, string> = { A: "a", B: "b", C: "c", D: "d" };
       const correctAnswer = type === "multiple_correct"
-        ? correctRaw.split(",").map(c => correctMap[c.trim()] || c.trim().toLowerCase()).join(",")
+        ? correctRaw.split(",").map((c) => correctMap[c.trim()] || c.trim().toLowerCase()).join(",")
         : correctMap[correctRaw] || correctRaw.toLowerCase();
 
       const optA = getField("OPTION_A");
@@ -119,7 +119,7 @@ For each subject, generate:
 - 20 MCQ questions (4 options, single correct, +4/-1 marking)
 - 5 Integer type questions (answer is any positive integer, +4/-1 marking, no options needed)
 
-Distribute the 25 Physics questions across these chapters (pick varied ones each time): Units and Measurements, Kinematics, Laws of Motion, Work Energy and Power, Rotational Motion, Gravitation, Properties of Solids and Liquids, Thermodynamics, Kinetic Theory of Gases, Oscillations and Waves, Electrostatics, Current Electricity, Magnetic Effects of Current and Magnetism, Electromagnetic Induction and Alternating Currents, Optics, Dual Nature of Matter and Radiation, Atoms and Nuclei, Electronic Devices.
+Distribute the 25 Physics questions across these chapters (pick varied ones each time): Units and Measurements, Kinematics, Laws of Motion, Work Energy and Power, Rotational Motion, Gravitation, Properties of Solids and Liquids, Thermodynamics, Kinetic Theory of Gases, Oscillations and Waves, Electrostatics, Current Electricity, Magnetic Effects of Current and Magnetism, Electromagnetic Induction and Alternating Currents, Electromagnetic Waves, Optics, Dual Nature of Matter and Radiation, Atoms and Nuclei, Electronic Devices.
 
 Distribute the 25 Chemistry questions across: Some Basic Concepts in Chemistry, Atomic Structure, Chemical Bonding and Molecular Structure, Chemical Thermodynamics, Solutions, Equilibrium, Redox Reactions and Electrochemistry, Chemical Kinetics, p-Block Elements, d and f-Block Elements, Coordination Compounds, Basic Principles of Organic Chemistry, Hydrocarbons, Organic Compounds Containing Oxygen, Organic Compounds Containing Nitrogen, Biomolecules.
 
@@ -271,7 +271,7 @@ serve(async (req) => {
     const pickedYear2 = pyqYears[Math.floor(Math.random() * pyqYears.length)];
     const varietySeed = varietySeeds[Math.floor(Math.random() * varietySeeds.length)];
 
-    // ─── Handle exam mode ───────────────────────────────────────
+    // Handle exam mode
     if (examMode) {
       const preset = getExamPreset(examMode, examDifficulty, varietySeed);
       if (preset) {
@@ -310,7 +310,7 @@ serve(async (req) => {
       }
     }
 
-    // ─── Regular question generation ────────────────────────────
+    // Regular question generation
     let totalQuestions = 30;
     let subjectInstructions = "";
     let topicHints = "";
@@ -349,7 +349,7 @@ serve(async (req) => {
         topicHints = `TOPICS MUST BE STRICTLY FROM JEE MAIN 2026 OFFICIAL SYLLABUS:
 Physics: Units and Measurements, Kinematics, Laws of Motion, Work Energy and Power, Rotational Motion, Gravitation, Properties of Solids and Liquids, Thermodynamics, Kinetic Theory of Gases, Oscillations and Waves, Electrostatics, Current Electricity, Magnetic Effects of Current and Magnetism, Electromagnetic Induction and Alternating Currents, Electromagnetic Waves, Optics, Dual Nature of Matter and Radiation, Atoms and Nuclei, Electronic Devices
 Chemistry: Some Basic Concepts in Chemistry, Atomic Structure, Chemical Bonding and Molecular Structure, Chemical Thermodynamics, Solutions, Equilibrium, Redox Reactions and Electrochemistry, Chemical Kinetics, Classification of Elements and Periodicity, p-Block Elements, d and f-Block Elements, Coordination Compounds, Basic Principles of Organic Chemistry, Hydrocarbons, Organic Compounds Containing Halogens, Organic Compounds Containing Oxygen, Organic Compounds Containing Nitrogen, Biomolecules
-Mathematics: Sets Relations and Functions, Complex Numbers and Quadratic Equations, Matrices and Determinants, Permutations and Combinations, Binomial Theorem, Sequences and Series, Limits Continuity and Differentiability, Integral Calculus, Differential Equations, Straight Lines and Coordinate Geometry, Circles and Conic Sections, Three Dimensional Geometry, Vector Algebra, Statistics and Probability, Trigonometry`; }
+Mathematics: Sets Relations and Functions, Complex Numbers and Quadratic Equations, Matrices and Determinants, Permutations and Combinations, Binomial Theorem, Sequences and Series, Limits Continuity and Differentiability, Integral Calculus, Differential Equations, Straight Lines and Coordinate Geometry, Circles and Conic Sections, Three Dimensional Geometry, Vector Algebra, Statistics and Probability, Trigonometry`;
       }
     }
 
@@ -378,19 +378,21 @@ QUESTION MIX RULES:
 - Do NOT repeat question patterns across the set. Each question must test a distinctly different concept, formula, or reasoning style from the others.
 
 DIFFICULTY DISTRIBUTION (strictly enforce for level ${globalLevel}):
-${globalLevel === 1 ? "- 80% easy, 20% medium. Only direct single-formula substitution. No multi-step reasoning." : ""}${globalLevel === 2 ? "- 50% easy, 40% medium, 10% hard. Standard textbook style." : ""}${globalLevel === 3 ? "- 20% easy, 50% medium, 30% hard. No trivially solvable questions. Every question must require at least 2 reasoning steps." : ""}${globalLevel === 4 ? "- 10% medium, 90% hard. Multi-concept, multi-step. At least 2 questions combining two chapters." : ""}${globalLevel === 5 ? "- 100% hard. JEE Advanced level only. Counterintuitive results, multi-concept, paragraph-based logic." : ""}
+${LEVEL_DESCRIPTIONS[globalLevel]}
 
-RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS. DO NOT wrap in \`\`\`.
+For Integer questions: answer is any POSITIVE INTEGERS (not limited to 0-9, can be any whole number like 12, 48, 100, etc.). For Physical Chemistry problems, answer may be the nearest integer of a calculated value.
 
-For each question, use this exact template:
+RESPONSE FORMAT — USE THIS EXACT PLAIN TEXT FORMAT. DO NOT RETURN JSON. DO NOT USE MARKDOWN CODE BLOCKS.
+
+For each question use exactly:
 
 ===QUESTION===
-ID: (number)
+ID: (number 1–${totalQuestions})
 SUBJECT: (Physics or Chemistry or Mathematics)
 CHAPTER: (chapter name)
 TYPE: (mcq or numerical or integer)
 DIFFICULTY: (easy, medium, or hard)
-SOURCE: (either "Original" or "JEE Mains YYYY" for PYQ questions)
+SOURCE: (optional — only for PYQ questions, omit for original questions)
 TEXT: (question text with LaTeX in dollar signs)
 OPTION_A: (option with LaTeX in dollar signs)
 OPTION_B: (option with LaTeX in dollar signs)
