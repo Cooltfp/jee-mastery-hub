@@ -2,9 +2,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BookOpen, Brain, BarChart3, MessageCircle, ChevronRight, Atom, FlaskConical, Calculator, Clock, FileText, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/components/AuthProvider"; // Added import
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth(); // Added auth hook
   const [examDifficultyModal, setExamDifficultyModal] = useState<"jee_mains_2026" | "jee_advanced_2026" | null>(null);
   const [examDifficulty, setExamDifficulty] = useState<"easy" | "medium" | "hard" | "random">("medium");
 
@@ -41,6 +43,21 @@ const Index = () => {
             <Button onClick={() => navigate("/test")} className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-transform" size="sm">
               Start Test
             </Button>
+            
+            {/* Added Profile & Sign Out Section */}
+            <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border">
+              <img
+                src={user?.user_metadata?.avatar_url}
+                className="w-7 h-7 rounded-full bg-muted"
+                alt="avatar"
+              />
+              <button
+                onClick={signOut}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </nav>
