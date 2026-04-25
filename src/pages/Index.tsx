@@ -26,22 +26,51 @@ const Index = () => {
             </div>
             <span className="font-bold text-lg tracking-tight">JEE Prep</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/history")} className="active:scale-[0.97] transition-transform">
-              <Clock className="w-4 h-4 mr-2" />
-              History
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/practice")} className="active:scale-[0.97] transition-transform">
-              <BookOpen className="w-4 h-4 mr-2" />
-              Practice
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/doubt-solver")} className="active:scale-[0.97] transition-transform">
-              <MessageCircle className="w-4 h-4 mr-2" />
-              Doubt Solver
-            </Button>
-            <Button onClick={() => navigate("/test")} className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-transform" size="sm">
-              Start Test
-            </Button>
+         <div className="flex items-center gap-2">
+  <Button variant="ghost" size="sm" onClick={() => navigate("/history")} className="active:scale-[0.97] transition-transform">
+    <Clock className="w-4 h-4 mr-2" />
+    History
+  </Button>
+  <Button variant="ghost" size="sm" onClick={() => navigate("/practice")} className="active:scale-[0.97] transition-transform">
+    <BookOpen className="w-4 h-4 mr-2" />
+    Practice
+  </Button>
+  <Button variant="ghost" size="sm" onClick={() => navigate("/doubt-solver")} className="active:scale-[0.97] transition-transform">
+    <MessageCircle className="w-4 h-4 mr-2" />
+    Doubt Solver
+  </Button>
+  <Button onClick={() => navigate("/test")} className="bg-accent text-accent-foreground hover:bg-accent/90 active:scale-[0.97] transition-transform" size="sm">
+    Start Test
+  </Button>
+
+  {/* ADD THIS BELOW ↓ */}
+  {user ? (
+    <div className="flex items-center gap-2 ml-1 pl-2 border-l border-border">
+      {user.user_metadata?.avatar_url && (
+        <img
+          src={user.user_metadata.avatar_url}
+          className="w-7 h-7 rounded-full object-cover"
+          alt="avatar"
+        />
+      )}
+      <button
+        onClick={signOut}
+        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        Sign out
+      </button>
+    </div>
+  ) : (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => navigate("/login")}
+      className="ml-1"
+    >
+      Sign in
+    </Button>
+  )}
+</div>
             
             {/* Added Profile & Sign Out Section */}
             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border">
