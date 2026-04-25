@@ -16,34 +16,25 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-  if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-};
+const Spinner = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  if (loading) return <Spinner />;
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-      <Route path="/test" element={<ProtectedRoute><TestPage /></ProtectedRoute>} />
-      <Route path="/results" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
-      <Route path="/doubt-solver" element={<ProtectedRoute><DoubtSolverPage /></ProtectedRoute>} />
-      <Route path="/practice" element={<ProtectedRoute><PracticePage /></ProtectedRoute>} />
-      <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
-      <Route path="/analysis/:testId" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
+      <Route path="/" element={<Index />} />
+      <Route path="/test" element={<TestPage />} />
+      <Route path="/results" element={<ResultsPage />} />
+      <Route path="/doubt-solver" element={<DoubtSolverPage />} />
+      <Route path="/practice" element={<PracticePage />} />
+      <Route path="/history" element={<HistoryPage />} />
+      <Route path="/analysis/:testId" element={<AnalysisPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
