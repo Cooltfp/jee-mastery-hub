@@ -1,19 +1,21 @@
 import { useAuth } from "@/components/AuthProvider";
+import { useNavigate } from "react-router-dom";
 import { BookOpen } from "lucide-react";
 
 const LoginPage = () => {
   const { signInWithGoogle } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="max-w-sm w-full space-y-8 text-center">
+      <div className="max-w-sm w-full space-y-6 text-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center">
             <BookOpen className="w-7 h-7 text-accent-foreground" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">JEE Mastery Hub</h1>
           <p className="text-sm text-muted-foreground">
-            Sign in to track your progress and access all features
+            Sign in to save your progress across devices
           </p>
         </div>
 
@@ -30,11 +32,24 @@ const LoginPage = () => {
             </svg>
             Continue with Google
           </button>
-        </div>
 
-        <p className="text-xs text-muted-foreground">
-          Your progress, test history and scores are saved to your account
-        </p>
+          <div className="relative flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <button
+            onClick={() => navigate("/")}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-border/50 hover:bg-muted/50 transition-all text-sm text-muted-foreground hover:text-foreground active:scale-[0.98]"
+          >
+            Continue as Guest →
+          </button>
+
+          <p className="text-xs text-muted-foreground/60">
+            Guest progress is saved locally and won't sync across devices
+          </p>
+        </div>
       </div>
     </div>
   );
