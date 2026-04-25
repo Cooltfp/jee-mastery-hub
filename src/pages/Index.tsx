@@ -1,9 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Brain, BarChart3, MessageCircle, ChevronRight, Atom, FlaskConical, Calculator, Clock, FileText, Zap } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useAuth } from "@/components/AuthProvider"; // Added import
-
+import { BookOpen, Brain, BarChart3, MessageCircle, ChevronRight, Atom, FlaskConical, Calculator, Clock } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { useAuth } from "@/components/AuthProvider";
 const Index = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth(); // Added auth hook
